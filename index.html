@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Elffuss Translator · conversación en tiempo real, offline</title>
+<style>
+  :root{--bg:#0b0d10;--panel:#101317;--line:#20252c;--fg:#e8eaed;--mut:#8b929c;--accent:#b79268;--sig:#7f9cc0;--ok:#7faa7f;--warn:#c9a15a;--rec:#c0655a}
+  *{box-sizing:border-box;margin:0}
+  body{font-family:-apple-system,system-ui,"Segoe UI",sans-serif;background:var(--bg);color:var(--fg);min-height:100vh;display:flex;flex-direction:column;font-size:15px}
+  header{padding:16px 24px;display:flex;align-items:baseline;gap:14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  header h1{font-family:Georgia,"Times New Roman",serif;font-size:1.2rem;font-weight:600;letter-spacing:.2px}
+  header .sub{font-size:.68rem;color:var(--mut);text-transform:uppercase;letter-spacing:.16em}
+  header .hnav{margin-left:auto;display:flex;align-items:center;gap:16px}
+  header .hnav a{color:var(--accent);text-decoration:none;font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;border-bottom:1px solid transparent;padding-bottom:1px}
+  header .hnav a:hover{border-color:var(--accent)}
+  header .badge{font-size:.64rem;color:var(--mut);text-transform:uppercase;letter-spacing:.1em;border:1px solid var(--line);border-radius:2px;padding:4px 9px;white-space:nowrap}
+  @media(max-width:560px){ header{padding:13px 18px;gap:8px 12px} header .sub{display:none} header .hnav{gap:12px} }
+  .bar{max-width:840px;margin:0 auto;width:100%;padding:16px 24px 0;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .conv{background:transparent;color:var(--accent);border:1px solid var(--line);border-radius:3px;padding:9px 16px;font-weight:600;cursor:pointer;font-size:.82rem;letter-spacing:.02em;transition:border-color .15s}
+  .conv:hover{border-color:var(--accent)}
+  .conv.on{color:var(--rec);border-color:var(--rec)}
+  .sides{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 24px;max-width:840px;margin:0 auto;width:100%}
+  .side{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:20px;text-align:center;position:relative}
+  .side.active{border-color:var(--accent)}
+  select{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:3px;padding:10px;font:inherit;margin-bottom:18px}
+  .mic{width:76px;height:76px;border-radius:50%;border:1px solid var(--line);background:transparent;cursor:pointer;color:var(--fg);transition:border-color .15s,transform .1s;display:inline-flex;align-items:center;justify-content:center}
+  .mic svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .mic:hover{border-color:var(--accent)} .mic:active{transform:scale(.95)}
+  .mic:disabled{opacity:.4;cursor:not-allowed}
+  .mic.rec{color:var(--rec);border-color:var(--rec)}
+  @keyframes pulse{50%{box-shadow:0 0 0 10px rgba(192,101,90,.12)}}
+  .hint{font-size:.72rem;color:var(--mut);margin-top:12px;min-height:1.2em;text-transform:uppercase;letter-spacing:.08em}
+  .hint.err{color:var(--rec)} .hint.work{color:var(--warn)}
+  .log{flex:1;overflow:auto;padding:8px 24px 22px;max-width:840px;margin:0 auto;width:100%;display:flex;flex-direction:column;gap:0}
+  .bub{max-width:82%;padding:12px 0;border-bottom:1px solid var(--line)}
+  .bub .who{font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;color:var(--sig);margin-bottom:3px}
+  .bub.B .who{color:var(--accent)}
+  .bub .src{color:var(--mut);font-size:.86rem;margin-bottom:3px} .bub .tr{font-weight:500;line-height:1.5}
+  .bub.A{align-self:flex-start} .bub.B{align-self:flex-end;text-align:right}
+  .status{text-align:center;font-size:.7rem;color:var(--mut);padding:8px;text-transform:uppercase;letter-spacing:.1em}
+  .status.err{color:var(--rec)} .status.work{color:var(--warn)}
+  footer{text-align:center;font-size:.68rem;color:var(--mut);padding:12px;letter-spacing:.02em}
+  footer a{color:var(--accent);text-decoration:none} footer a:hover{text-decoration:underline}
+  .note{max-width:840px;margin:0 auto 4px;width:100%;padding:0 24px;font-size:.72rem;color:var(--mut);text-align:center;line-height:1.5}
+
+  /* ── modal de consentimiento ── */
+  .scrim{position:fixed;inset:0;background:rgba(6,8,11,.8);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+  .scrim[hidden]{display:none}
+  .modal-card{background:var(--panel);border:1px solid var(--line);border-radius:5px;max-width:430px;width:100%;padding:30px;text-align:center}
+  .modal-card h2{font-family:Georgia,serif;font-size:1.2rem;font-weight:600;margin-bottom:12px}
+  .modal-card p{font-size:.86rem;color:#c3c9d0;line-height:1.55;margin-bottom:10px}
+  .modal-card .big{font-family:Georgia,serif;font-size:1.9rem;font-weight:600;color:var(--accent);display:block;margin:6px 0 4px}
+  .modal-card .fine{font-size:.76rem;color:var(--mut)}
+  .modal-card .chips{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin:16px 0 4px}
+  .modal-card .chip{font-size:.68rem;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
+  .modal-card .chip b{color:var(--ok);font-weight:600}
+  .warnbat{font-size:.78rem;color:var(--warn);border:1px solid rgba(201,161,90,.3);border-radius:3px;padding:9px 11px;margin-top:14px;line-height:1.45}
+  .warnbat[hidden]{display:none}
+  .row{display:flex;gap:10px;margin-top:22px}
+  .row button{flex:1;border:1px solid var(--line);border-radius:3px;padding:12px;font-weight:600;font-size:.86rem;cursor:pointer;letter-spacing:.02em}
+  .row .ghost{background:transparent;color:var(--mut)}
+  .row .go{background:var(--accent);color:#151109;border-color:var(--accent)}
+  /* ── overlay de progreso ── */
+  .prog-card{background:var(--panel);border:1px solid var(--line);border-radius:5px;max-width:360px;width:100%;padding:30px;text-align:center}
+  .ring{position:relative;width:128px;height:128px;margin:0 auto 16px}
+  .ring svg{transform:rotate(-90deg);width:128px;height:128px}
+  .ring circle{fill:none;stroke-width:6}
+  .ring .bgc{stroke:var(--line)}
+  .ring .fgc{stroke:var(--accent);transition:stroke-dashoffset .25s ease}
+  .ring .pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-size:1.7rem;font-weight:600}
+  .dlmsg{font-weight:600;font-size:.95rem;margin-bottom:4px}
+  .dlsub{font-size:.72rem;color:var(--ok);margin-bottom:10px;text-transform:uppercase;letter-spacing:.08em}
+  .dlfile{font-size:.7rem;color:var(--mut);font-family:ui-monospace,monospace;min-height:1.1em;word-break:break-all}
+  .dlbytes{font-size:.8rem;color:#c3c9d0;margin-top:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Elffuss Translator</h1><span class="sub">local · offline · en tu navegador</span>
+  <nav class="hnav">
+    <a href="https://github.com/KikoCis/elffuss-translator" target="_blank" rel="noopener">Código</a>
+    <span class="badge" id="badge">Whisper + Kokoro</span>
+  </nav>
+</header>
+
+<div class="bar">
+  <button class="conv" id="conv">Modo conversación</button>
+</div>
+<div class="note">Pulsa un micro y habla (vuelve a pulsar para parar) — o activa <b>Modo conversación</b>: un solo micro, manos libres, y separa <b>quién habla</b> por su voz y lo enruta. Todo en tu GPU.</div>
+
+<div class="sides">
+  <div class="side A" id="sideA">
+    <select id="langA"></select>
+    <button class="mic" id="micA" title="Pulsa para hablar"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></button>
+    <div class="hint" id="hintA">pulsa y habla</div>
+  </div>
+  <div class="side B" id="sideB">
+    <select id="langB"></select>
+    <button class="mic" id="micB" title="Pulsa para hablar"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></button>
+    <div class="hint" id="hintB">pulsa y habla</div>
+  </div>
+</div>
+
+<div class="status" id="status">Escucha, traduce y habla — todo en tu navegador, sin enviar nada a la nube.</div>
+<div class="log" id="log"></div>
+<footer>La versión navegador de la Gemma Translator: local, offline, sin cuenta. · Código abierto en <a href="https://github.com/KikoCis/elffuss-translator" target="_blank" rel="noopener">GitHub</a> · <a href="https://elffuss.utopiaia.com" target="_blank" rel="noopener">elffuss</a></footer>
+
+<!-- consentimiento -->
+<div class="scrim" id="dlModal" hidden>
+  <div class="modal-card">
+    <h2>Primero, descargar el modelo de voz</h2>
+    <p>Elffuss Translator corre la IA <b>dentro de tu navegador</b>, en tu propia GPU. Para eso, la primera vez descarga el modelo:</p>
+    <span class="big" id="dlSize">~1,5 GB</span>
+    <p class="fine" id="dlWhat">voz de alta calidad (Whisper-turbo)</p>
+    <div class="chips">
+      <span class="chip">Una sola vez</span>
+      <span class="chip">Luego en caché</span>
+      <span class="chip">Funciona offline</span>
+      <span class="chip">Nada sale de tu equipo</span>
+    </div>
+    <p class="warnbat" id="dlWarn" hidden></p>
+    <div class="row"><button class="ghost" id="dlNo">Ahora no</button><button class="go" id="dlYes">Descargar y empezar</button></div>
+  </div>
+</div>
+
+<!-- progreso -->
+<div class="scrim" id="dlProg" hidden>
+  <div class="prog-card">
+    <div class="ring">
+      <svg viewBox="0 0 132 132"><defs><linearGradient id="grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#ff5cd6"/></linearGradient></defs>
+        <circle class="bgc" cx="66" cy="66" r="56"/><circle class="fgc" id="ringFg" cx="66" cy="66" r="56"/></svg>
+      <div class="pct" id="dlPct">0%</div>
+    </div>
+    <div class="dlmsg" id="dlMsg">Descargando el cerebro…</div>
+    <div class="dlsub">se queda en caché · después funciona offline</div>
+    <div class="dlbytes" id="dlBytes"></div>
+    <div class="dlfile" id="dlFile"></div>
+  </div>
+</div>
+
+<script type="module">
+import { loadDiarizer, speakerVec, makeSpeakerBook } from './diarize.mjs';
+const LANGS=[['es','Español'],['en','English'],['fr','Français'],['de','Deutsch'],['it','Italiano'],['pt','Português'],['ca','Català'],['nl','Nederlands'],['ru','Русский'],['uk','Українська']];
+const $=id=>document.getElementById(id);
+const speechLocale={es:'es-ES',en:'en-US',fr:'fr-FR',de:'de-DE',it:'it-IT',pt:'pt-PT',ca:'ca-ES',nl:'nl-NL',ru:'ru-RU',uk:'uk-UA'};
+for(const sel of [$('langA'),$('langB')]) sel.innerHTML=LANGS.map(([c,n])=>`<option value="${c}">${n}</option>`).join('');
+$('langA').value='es'; $('langB').value='en';
+const setStatus=(t,cls='')=>{ const s=$('status'); s.textContent=t; s.className='status '+cls; };
+const setHint=(side,t,cls='')=>{ const h=$('hint'+side); h.textContent=t; h.className='hint '+cls; };
+const rms=a=>{let s=0;for(const v of a)s+=v*v;return Math.sqrt(s/a.length);};
+
+// ── device + energía ──
+let DEVICE='wasm', USE_TURBO=false;
+const isMobile=/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints>1 && /Mac/.test(navigator.platform));
+let onBattery=false, batteryLevel=1;
+if(navigator.getBattery){ navigator.getBattery().then(b=>{ const upd=()=>{ onBattery=!b.charging; batteryLevel=b.level; }; upd(); b.addEventListener('chargingchange',upd); b.addEventListener('levelchange',upd); }).catch(()=>{}); }
+const deviceReady=(async()=>{ try{ if(navigator.gpu && await navigator.gpu.requestAdapter()) DEVICE='webgpu'; }catch{}
+  // En móvil NO usamos el modelo pesado (turbo ~1,5 GB): descarga y batería lo hacen inviable.
+  USE_TURBO = DEVICE==='webgpu' && !isMobile;
+  $('badge').textContent=(USE_TURBO?'Whisper-turbo + Kokoro · GPU':(isMobile?'Whisper-base · móvil':'Whisper-base · CPU'))+' · offline'; })();
+
+// ── overlay de progreso (compartido por todas las descargas) ──
+const DL={files:new Map()};
+const RC=2*Math.PI*56;
+const fmtMB=b=>b>=1073741824?(b/1073741824).toFixed(2)+' GB':(b/1048576).toFixed(0)+' MB';
+function dlProgress(e){ if(!e) return;
+  if(e.file && (e.status==='progress'||e.status==='download'||e.status==='done')){
+    const prev=DL.files.get(e.file)||{loaded:0,total:0};
+    DL.files.set(e.file,{loaded:e.status==='done'?(e.total||prev.total||prev.loaded):(e.loaded||prev.loaded), total:e.total||prev.total}); }
+  let loaded=0,total=0; for(const v of DL.files.values()){loaded+=v.loaded;total+=v.total;}
+  const pct= total?Math.min(100,Math.round(loaded/total*100)):0;
+  $('dlProg').hidden=false; $('dlPct').textContent=pct+'%';
+  $('ringFg').style.strokeDasharray=RC; $('ringFg').style.strokeDashoffset=RC*(1-pct/100);
+  $('dlBytes').textContent= total?`${fmtMB(loaded)} / ${fmtMB(total)}`:fmtMB(loaded);
+  $('dlFile').textContent= e.file?e.file.split('/').pop():''; }
+function dlDone(){ $('dlProg').hidden=true; DL.files.clear(); }
+
+// ── consentimiento (una vez, recordado) ──
+let consented = localStorage.getItem('elffuss_tr_dl')==='1';
+function estimate(){ return USE_TURBO
+  ? {size:'~1,5 GB', what:'voz de alta calidad (Whisper-turbo)'}
+  : {size:'~150 MB', what:'reconocimiento de voz (Whisper-base)'}; }
+function askConsent(){ return new Promise(res=>{ if(consented) return res(true);
+  const est=estimate(); $('dlSize').textContent=est.size; $('dlWhat').textContent=est.what;
+  // aviso de energía/datos: en móvil o con batería sin cargador
+  const w=$('dlWarn');
+  if(isMobile || onBattery){ w.hidden=false;
+    w.innerHTML = (isMobile?'<b>Móvil:</b> uso el modelo ligero, pero aun así descarga datos y consume batería. Mejor con <b>Wi-Fi</b>. '
+                          : '<b>Batería (sin cargador):</b> correr el modelo consume energía. Te recomiendo <b>enchufar</b>' + (batteryLevel<0.99?` (batería al ${Math.round(batteryLevel*100)}%)`:'') + '.');
+  } else w.hidden=true;
+  $('dlModal').hidden=false;
+  $('dlYes').onclick=()=>{ consented=true; try{localStorage.setItem('elffuss_tr_dl','1');}catch{} $('dlModal').hidden=true; res(true); };
+  $('dlNo').onclick=()=>{ $('dlModal').hidden=true; res(false); }; }); }
+
+// ── transformers.js ──
+let TFmod=null;
+async function tf(){ if(!TFmod){ TFmod=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3'); TFmod.env.allowLocalModels=false; } return TFmod; }
+
+// ── STT: Whisper (turbo GPU / base CPU, fallback seguro) ──
+let asrP=null;
+async function getASR(){ if(asrP) return asrP;
+  asrP=(async()=>{ await deviceReady; const {pipeline}=await tf(); $('dlMsg').textContent='Descargando el reconocimiento de voz…';
+    if(USE_TURBO){ try{
+      const p=await pipeline('automatic-speech-recognition','onnx-community/whisper-large-v3-turbo',{dtype:{encoder_model:'fp16',decoder_model_merged:'q4'},device:'webgpu',progress_callback:dlProgress});
+      dlDone(); setStatus('ASR turbo listo (GPU). Habla cuando quieras.',''); return p;
+    }catch(e){ console.warn('[asr] turbo no disponible, uso base:', e.message); DL.files.clear(); } }
+    const p=await pipeline('automatic-speech-recognition','onnx-community/whisper-base',{dtype:'q8',device:'wasm',progress_callback:dlProgress});
+    dlDone(); setStatus('ASR listo. Habla cuando quieras — todo local.',''); return p;
+  })();
+  return asrP;
+}
+async function ensureASR(){ if(asrP) return true; if(!(await askConsent())) return false; await getASR(); return true; }
+async function blobTo16k(blob){ const ab=await blob.arrayBuffer(); const AC=window.AudioContext||window.webkitAudioContext; const ac=new AC();
+  const buf=await ac.decodeAudioData(ab); ac.close&&ac.close(); return resample(buf.getChannelData(0),buf.sampleRate,16000); }
+function resample(data,inRate,outRate){ if(inRate===outRate) return data; const ratio=inRate/outRate,len=Math.round(data.length/ratio),out=new Float32Array(len);
+  for(let i=0;i<len;i++){ const idx=i*ratio,i0=Math.floor(idx),i1=Math.min(i0+1,data.length-1),f=idx-i0; out[i]=data[i0]*(1-f)+data[i1]*f; } return out; }
+function _rms(a){ let s=0; for(let i=0;i<a.length;i++)s+=a[i]*a[i]; return Math.sqrt(s/a.length); }
+function _normalize(a){ let peak=0; for(let i=0;i<a.length;i++){ const v=Math.abs(a[i]); if(v>peak)peak=v; } if(peak>1e-4){ const g=Math.min(12,0.97/peak); if(g>1.03) for(let i=0;i<a.length;i++)a[i]*=g; } return a; }
+// frases típicas que Whisper INVENTA cuando el audio es casi silencio
+const _HALU=/^(gracias\.?|muchas gracias\.?|subt[ií]tulos.*|thanks for watching\.?|thank you\.?|you|bye\.?|\.|·|\s)+$/i;
+async function transcribe(audio16k,lang){
+  const asr=await getASR();
+  if(audio16k.length<4000) return '';
+  if(_rms(audio16k) < 0.0008){ return '__SILENCE__'; }     // solo silencio digital real (micro sin señal)
+  _normalize(audio16k);                                     // sube SIEMPRE el micro flojo antes de transcribir
+  const out=await asr(audio16k,{language:lang,task:'transcribe',temperature:0,no_repeat_ngram_size:3});
+  let t=(out&&out.text||'').trim();
+  if(!t || _HALU.test(t)) return '';                         // alucinación o vacío → descarta
+  return t;
+}
+
+// ── traducción ──
+const trCache=new Map();
+async function chromeTranslator(src,tgt){ const T=self.Translator||self.translation; if(!T) return null; const key='ct'+src+tgt; if(trCache.has(key)) return trCache.get(key);
+  try{ const av=T.availability?await T.availability({sourceLanguage:src,targetLanguage:tgt}):'available'; if(av==='unavailable') return null;
+    const t=await (T.create?T.create({sourceLanguage:src,targetLanguage:tgt}):T.createTranslator({sourceLanguage:src,targetLanguage:tgt})); trCache.set(key,t); return t; }catch{ return null; } }
+async function opus(src,tgt,text){ if(src===tgt) return text; const {pipeline}=await tf();
+  const hop=async(a,b,txt)=>{ const id=`Xenova/opus-mt-${a}-${b}`; if(!trCache.has(id)){ $('dlMsg').textContent=`Descargando traductor ${a}→${b}…`; trCache.set(id,await pipeline('translation',id,{dtype:'fp32',progress_callback:dlProgress})); dlDone(); } const r=await trCache.get(id)(txt); return r[0].translation_text; };
+  try{ if(src==='en'||tgt==='en') return await hop(src,tgt,text); return await hop('en',tgt,await hop(src,'en',text)); }catch(e){ return '['+e.message.slice(0,40)+']'; } }
+async function translate(src,tgt,text){ const ct=await chromeTranslator(src,tgt); if(ct){ try{ return await ct.translate(text); }catch{} } return await opus(src,tgt,text); }
+
+// ── TTS: Kokoro (inglés) + voz de sistema (resto) ──
+let kokoroP=null;
+async function getKokoro(){ if(!kokoroP) kokoroP=(async()=>{ const {KokoroTTS}=await import('https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1'); $('dlMsg').textContent='Descargando la voz neural (Kokoro)…'; const t=await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX',{dtype:'q8',device:DEVICE,progress_callback:dlProgress}); dlDone(); return t; })(); return kokoroP; }
+function playPCM(f32,sr){ const AC=window.AudioContext||window.webkitAudioContext; const ac=new AC(); const buf=ac.createBuffer(1,f32.length,sr); buf.getChannelData(0).set(f32); const s=ac.createBufferSource(); s.buffer=buf; s.connect(ac.destination); s.start(); }
+async function speak(text,lang){ if(lang==='en'){ try{ const tts=await getKokoro(); const a=await tts.generate(text,{voice:'af_heart'}); playPCM(a.audio,a.sampling_rate); return; }catch(e){ console.warn('[tts] kokoro fallo, voz sistema', e.message); dlDone(); } }
+  try{ const u=new SpeechSynthesisUtterance(text); u.lang=speechLocale[lang]||lang; speechSynthesis.speak(u); }catch{} }
+
+// ── diarizador (modo conversación) ──
+let diarP=null; async function getDiar(){ if(!diarP) diarP=(async()=>{ $('dlMsg').textContent='Descargando el separador de voces…'; const d=await loadDiarizer(await tf(),{device:DEVICE}); dlDone(); return d; })(); return diarP; }
+
+// ── push-to-talk ──
+function pickMime(){ for(const m of ['audio/webm;codecs=opus','audio/webm','audio/mp4','']){ if(!m||MediaRecorder.isTypeSupported(m)) return m; } return ''; }
+const recs={A:null,B:null}; let busy=false;
+async function startRec(side){ if(recs[side]||busy||convOn) return;
+  if(!(await ensureASR())){ setHint(side,'descarga cancelada'); return; }
+  const from=$('lang'+side).value; let stream;
+  // sin noiseSuppression/echoCancellation: cierran el audio de micros flojos. autoGainControl sube el nivel.
+  try{ stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}}); }
+  catch(e){ setHint(side,'sin permiso de micrófono','err'); return; }
+  const mr=new MediaRecorder(stream,pickMime()?{mimeType:pickMime()}:undefined); const chunks=[]; mr.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+  mr.onstop=async()=>{ stream.getTracks().forEach(t=>t.stop()); const blob=new Blob(chunks,{type:mr.mimeType||'audio/webm'}); await handleSide(side,from,blob); };
+  mr.start(); recs[side]={mr,stream}; $('mic'+side).classList.add('rec'); setHint(side,'grabando… (pulsa para parar)','work'); meter(side,stream); }
+// medidor de nivel: escala el micro con tu voz — si no se mueve, el micro no capta
+function meter(side,stream){
+  const AC=window.AudioContext||window.webkitAudioContext; const ac=new AC(); const an=ac.createAnalyser(); an.fftSize=256;
+  ac.createMediaStreamSource(stream).connect(an); const buf=new Uint8Array(an.frequencyBinCount); const mic=$('mic'+side); let quiet=0,frames=0;
+  const tick=()=>{ if(!recs[side]){ mic.style.boxShadow=''; try{ac.close();}catch{} return; }
+    an.getByteFrequencyData(buf); let s=0; for(const v of buf)s+=v; const lvl=Math.min(1,(s/buf.length/255)*3.5);
+    mic.style.boxShadow=`0 0 0 ${Math.round(2+lvl*15)}px rgba(192,101,90,${(0.06+lvl*0.28).toFixed(2)})`; frames++; if(lvl<0.03)quiet++;
+    if(frames===90 && quiet>85) setHint(side,'no detecto señal del micro…','err'); requestAnimationFrame(tick); };
+  tick();
+}
+function stopRec(side){ const r=recs[side]; if(!r) return; recs[side]=null; $('mic'+side).classList.remove('rec'); setHint(side,'procesando…','work'); try{ r.mr.stop(); }catch{} }
+function bubble(side,who,src){ const el=document.createElement('div'); el.className='bub '+side; el.innerHTML=`<div class="who"></div><div class="src"></div><div class="tr">…</div>`;
+  el.querySelector('.who').textContent=who; el.querySelector('.src').textContent=src; $('log').appendChild(el); $('log').scrollTop=$('log').scrollHeight; return el; }
+async function handleSide(side,from,blob){ const to=$('lang'+(side==='A'?'B':'A')).value; busy=true; $('micA').disabled=$('micB').disabled=true;
+  try{ setStatus('Transcribiendo (local)…','work'); const audio=await blobTo16k(blob); const text=await transcribe(audio,from);
+    if(text==='__SILENCE__'){ setHint(side,'no llegó tu voz — revisa el micro y el volumen','err'); setStatus('No detecté audio del micrófono.','err'); return; }
+    if(!text){ setHint(side,'no te he entendido, repite más claro','err'); setStatus('Sin texto que traducir.',''); return; }
+    setHint(side,'pulsa y habla'); const el=bubble(side, side==='A'?'Tú (A)':'Tú (B)', text);
+    setStatus('Traduciendo…','work'); const out=await translate(from,to,text); el.querySelector('.tr').textContent=out; setStatus('Listo. Todo local, sin nube.',''); speak(out,to);
+  }catch(e){ setHint(side,'error: '+e.message.slice(0,50),'err'); }
+  finally{ busy=false; $('micA').disabled=$('micB').disabled=false; } }
+$('micA').onclick=()=>recs.A?stopRec('A'):startRec('A');
+$('micB').onclick=()=>recs.B?stopRec('B'):startRec('B');
+
+// ── modo conversación (VAD + diarización online) ──
+let convOn=false, convCtx=null, convStream=null, convProc=null, convBook=null;
+async function convStart(){
+  if(!(await ensureASR())) return; await getDiar();
+  let stream; try{ stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); }
+  catch(e){ setStatus('Permite el micrófono para el modo conversación.','err'); return; }
+  convOn=true; convStream=stream; convBook=makeSpeakerBook({tau:0.5,maxSpeakers:2});
+  $('conv').classList.add('on'); $('conv').textContent='Parar conversación';
+  setStatus('Modo conversación: hablad por turnos, sin manos. Separo quién habla por su voz.','work');
+  const AC=window.AudioContext||window.webkitAudioContext; convCtx=new AC(); const src=convCtx.createMediaStreamSource(stream);
+  const proc=convCtx.createScriptProcessor(4096,1,1); convProc=proc; src.connect(proc); proc.connect(convCtx.destination);
+  const SR=convCtx.sampleRate; let buf=[], voiced=false, silence=0, speechLen=0;
+  proc.onaudioprocess=(e)=>{ if(!convOn) return; const d=e.inputBuffer.getChannelData(0); const r=rms(d);
+    if(r>0.02){ voiced=true; silence=0; buf.push(new Float32Array(d)); speechLen+=d.length; }
+    else if(voiced){ buf.push(new Float32Array(d)); silence+=d.length;
+      if(silence>SR*0.7){ const seg=flatten(buf); buf=[]; const sl=speechLen; voiced=false; silence=0; speechLen=0;
+        if(sl>SR*0.4) convHandle(resample(seg,SR,16000)); } } };
+}
+function flatten(chunks){ let n=0; for(const c of chunks)n+=c.length; const out=new Float32Array(n); let o=0; for(const c of chunks){ out.set(c,o); o+=c.length; } return out; }
+function convStop(){ convOn=false; $('conv').classList.remove('on'); $('conv').textContent='Modo conversación';
+  try{ convProc&&(convProc.onaudioprocess=null,convProc.disconnect()); convCtx&&convCtx.close(); convStream&&convStream.getTracks().forEach(t=>t.stop()); }catch{}
+  $('sideA').classList.remove('active'); $('sideB').classList.remove('active'); setStatus('Conversación terminada.',''); }
+$('conv').onclick=()=>convOn?convStop():convStart();
+let convBusy=false;
+async function convHandle(audio16k){ if(convBusy) return; convBusy=true;
+  try{ const D=await getDiar(); const vec=await speakerVec(D,audio16k); const {label}=convBook.assign(vec);
+    const isA=label==='S1'; const side=isA?'A':'B'; const from=$('lang'+side).value; const to=$('lang'+(isA?'B':'A')).value;
+    $('sideA').classList.toggle('active',isA); $('sideB').classList.toggle('active',!isA); setStatus(`Hablante ${label} → traduciendo…`,'work');
+    const text=await transcribe(audio16k,from); if(!text){ setStatus('(silencio)',''); return; }
+    const el=bubble(side, `${label} · ${from.toUpperCase()}`, text); const out=await translate(from,to,text); el.querySelector('.tr').textContent=out; speak(out,to);
+    setStatus('Escuchando… (separo las voces por turnos)','');
+  }catch(e){ setStatus('conv error: '+e.message.slice(0,50),'err'); }
+  finally{ convBusy=false; } }
+
+// ── ahorro de energía: nada del cerebro corre en segundo plano ──
+let convPaused=false;
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){
+    for(const s of ['A','B']) if(recs[s]) stopRec(s);               // suelta el micro de push-to-talk
+    if(convOn && convCtx && convCtx.state==='running'){ try{convCtx.suspend();}catch{} convPaused=true; setStatus('Pausado en segundo plano — ahorro de batería. Vuelve a la pestaña para seguir.','work'); }
+  } else if(convOn && convPaused){ try{convCtx.resume();}catch{} convPaused=false; setStatus('Reanudado. Escuchando…',''); }
+});
+
+window.__translate=translate; window.__transcribe=transcribe; window.__blobTo16k=blobTo16k; window.__ready=true;
+</script>
+</body>
+</html>
