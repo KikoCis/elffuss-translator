@@ -4,7 +4,7 @@ Traducción de conversaciones en tiempo real, **100% en tu navegador**. Escucha,
 
 Es la versión navegador de la idea de un "traductor de conversaciones" local: el modelo corre en tu propia GPU vía **WebGPU**, y cae a CPU (WASM) cuando no hay GPU disponible.
 
-**En vivo:** [translator.utopiaia.com](https://translator.utopiaia.com) · Parte de [Elffuss](https://elffuss.utopiaia.com).
+**En vivo:** [translator.elffuss.utopiaia.com](https://translator.elffuss.utopiaia.com) · Parte de [Elffuss](https://elffuss.utopiaia.com).
 
 ## Qué hace
 
