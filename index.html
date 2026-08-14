@@ -91,6 +91,28 @@
   .dlsub{font-size:.72rem;color:var(--ok);margin-bottom:10px;text-transform:uppercase;letter-spacing:.08em}
   .dlfile{font-size:.7rem;color:var(--mut);font-family:ui-monospace,monospace;min-height:1.1em;word-break:break-all}
   .dlbytes{font-size:.82rem;color:#c3c9d0;margin-top:2px}
+
+  /* superficie proyectada (pantalla partida real) */
+  body.withsurface #convo{flex-direction:row}
+  .convmain{display:flex;flex-direction:column;min-width:0;flex:1}
+  #surface{flex:0 0 40%;max-width:520px;border-left:1px solid var(--line);display:none;position:relative}
+  body.withsurface #surface{display:block}
+  #surface iframe{width:100%;height:100%;border:0;display:block;background:var(--bg)}
+  #surfClose{position:absolute;top:8px;right:10px;z-index:3;background:rgba(9,10,17,.7);color:var(--mut);border:1px solid var(--line);border-radius:5px;font-size:.68rem;padding:3px 8px;cursor:pointer}
+  #surfClose:hover{color:var(--fg)}
+  @media(max-width:900px){ body.withsurface #convo{flex-direction:column} #surface{flex:0 0 46%;max-width:none;border-left:0;border-top:1px solid var(--line)} }
+  .skpick{position:fixed;inset:0;background:rgba(6,8,11,.86);display:flex;align-items:center;justify-content:center;padding:20px;z-index:60}
+  .skpick[hidden]{display:none}
+  .skpick .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:560px;width:100%;padding:28px}
+  .skpick h2{font-family:var(--serif);font-size:1.4rem;margin-bottom:6px}
+  .skpick .lead{color:var(--mut);font-size:.86rem;margin-bottom:20px;line-height:1.5}
+  .skgrid{display:grid;gap:10px}
+  .skitem{display:flex;gap:13px;align-items:flex-start;text-align:left;padding:14px;border:1px solid var(--line);border-radius:11px;background:transparent;color:var(--fg);cursor:pointer;font:inherit;transition:border-color .3s,transform .3s,background .3s}
+  .skitem:hover{border-color:var(--accent);transform:translateY(-2px);background:rgba(200,160,106,.05)}
+  .skitem .ico{font-size:1.3rem;line-height:1}
+  .skitem b{display:block;font-size:.95rem;margin-bottom:3px}
+  .skitem span{color:var(--mut);font-size:.79rem;line-height:1.4}
+  .skpick .cancel{margin-top:16px;width:100%;background:transparent;color:var(--mut);border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit;font-size:.82rem;cursor:pointer}
 </style>
 </head>
 <body>
@@ -120,9 +142,10 @@
 
 <!-- CONVERSACIÓN -->
 <main id="convo" class="screen" hidden>
+  <div class="convmain">
   <div class="convtop">
     <span class="pair" id="pairLabel">—</span>
-    <button id="copilot" class="toggle paused" title="Abre Claw y te sopla argumentos de venta en vivo">Copiloto</button>
+    <button id="copilot" class="toggle paused" title="Skills que escuchan la conversación y trabajan mientras hablas">Skills en vivo</button>
     <button id="mute" class="toggle" title="Silenciar la voz: sigue traduciendo y mostrando subtítulos, pero sin hablar">🔊 Voz</button>
     <button id="toggle" class="toggle">Parar</button>
   </div>
@@ -130,6 +153,8 @@
   <div class="status" id="status">Escuchando…</div>
   <div class="advice" id="advice" hidden><div class="box"><span class="k">Copiloto</span><span class="t"></span></div></div>
   <div class="subs" id="log"><div class="empty" id="emptyMsg">Habla y aparecerá aquí, con la traducción debajo.</div></div>
+  </div>
+  <aside id="surface"><button id="surfClose" title="Cerrar la vista">✕ vista</button><iframe id="surfFrame" sandbox="allow-scripts allow-downloads" title="Vista de la skill"></iframe></aside>
 </main>
 
 <footer>La versión navegador de la Gemma Translator: local, offline, sin cuenta. · Código abierto en <a href="https://github.com/KikoCis/elffuss-translator" target="_blank" rel="noopener">GitHub</a> · <a href="https://elffuss.utopiaia.com" target="_blank" rel="noopener">elffuss</a></footer>
@@ -160,6 +185,14 @@
   </div>
 </div>
 
+
+<!-- selector de skills de audio en vivo -->
+<div class="skpick" id="skPick" hidden><div class="card">
+  <h2>Skills en vivo</h2>
+  <p class="lead">Elffuss escucha la conversación y trabaja mientras hablas. Elige qué quieres que haga — todo en tu navegador, sin cuota.</p>
+  <div class="skgrid" id="skGrid"></div>
+  <button class="cancel" id="skCancel">Ahora no</button>
+</div></div>
 <script type="module">
 import { loadDiarizer, speakerVec, makeSpeakerBook } from './diarize.mjs';
 const LANGS=[['es','Español'],['en','English'],['fr','Français'],['de','Deutsch'],['it','Italiano'],['pt','Português'],['ca','Català'],['nl','Nederlands'],['ru','Русский'],['uk','Українська']];
@@ -321,7 +354,9 @@ async function convStartInner(){
   lastAudioTs=Date.now();
   clearInterval(convWatch);
   convWatch=setInterval(()=>{
-    if(!convOn||document.hidden) return;
+    if(!convOn) return;
+    const copilotOpen = !!(copilotWin && !copilotWin.closed);
+    if(document.hidden && !copilotOpen) return;   // en 2º plano de verdad: no tocar
     // Quedó marcado como pausado pero la ventana YA se ve (pasa al abrir el
     // copiloto: Chrome oculta la ventana tapada y luego no siempre reanuda):
     // reconstruir en vez de quedarse mudo para siempre.
@@ -373,8 +408,10 @@ let copilotWin=null, copilotReady=false, copilotBuf=[];
 addEventListener('message', e=>{ if(e.origin!==CLAW || !e.data) return;
   if(e.data.kind==='copilot-ready'){ copilotReady=true;
     const sc=$('langA').value, sn=(LANGS.find(l=>l[0]===sc)||[])[1]||sc, oc=$('langB').value, on=(LANGS.find(l=>l[0]===oc)||[])[1]||oc;
-    try{ copilotWin.postMessage({kind:'copilot-init', sellerLangName:sn, sellerCode:sc, clientLangName:on},CLAW); }catch{}
+    try{ copilotWin.postMessage({kind:'copilot-init', skill:pickedSkill, sellerLangName:sn, sellerCode:sc, clientLangName:on},CLAW); }catch{}
     copilotBuf.forEach(t=>{ try{copilotWin.postMessage(t,CLAW);}catch{} }); copilotBuf=[]; }
+  else if(e.data.kind==='surface' && typeof e.data.html==='string'){ showSurface(e.data.html); }
+  else if(e.data.kind==='surface-state'){ try{ $('surfFrame').contentWindow?.postMessage({type:'surface-state',id:e.data.id,data:e.data.data,advice:e.data.advice},'*'); }catch{} }
   else if(e.data.kind==='copilot-advice'){
     // El modelo suele devolver el guion ENTRE COMILLAS ("—"), y así se colaba
     // como si fuera un consejo. Limpiar comillas/espacios y descartar si queda vacío.
@@ -383,21 +420,52 @@ addEventListener('message', e=>{ if(e.origin!==CLAW || !e.data) return;
 });
 function copilotSend(speaker,text){ if(!copilotWin||copilotWin.closed) return; const msg={kind:'transcript',speaker,text};
   if(copilotReady){ try{copilotWin.postMessage(msg,CLAW);}catch{} } else copilotBuf.push(msg); }
-function copilotReset(){ copilotWin=null; copilotReady=false; copilotBuf=[]; $('copilot').classList.remove('on'); $('copilot').textContent='Copiloto'; }
-$('copilot').onclick=()=>{
-  if(copilotWin && !copilotWin.closed){ try{copilotWin.close();}catch{} copilotReset(); return; }  // toggle: si está abierto, ciérralo
+function copilotReset(){ copilotWin=null; copilotReady=false; copilotBuf=[]; $('copilot').classList.remove('on'); $('copilot').textContent='Skills en vivo'; }
+// Catálogo de skills de audio en vivo (el «facilitador», pero local y gratis).
+const AUDIO_SKILLS=[
+  {id:'ventas',icon:'🎯',name:'Copiloto de ventas',desc:'Te sopla el argumento exacto y marca los objetivos de la llamada.'},
+  {id:'ficha',icon:'📇',name:'Ficha de cliente',desc:'Rellena la ficha sola con lo que dice el cliente. Se exporta a Excel.'},
+  {id:'facilitador',icon:'🧑‍🏫',name:'Facilitador de reunión',desc:'Temas, decisiones y tareas en vivo. Se exporta.'},
+  {id:'resumen',icon:'📝',name:'Resumen e ideas',desc:'Resumen progresivo y las ideas que van saliendo.'},
+];
+let pickedSkill='ventas';
+function openSkillPicker(){
+  const g=$('skGrid'); g.replaceChildren();
+  for(const sk of AUDIO_SKILLS){
+    const b=document.createElement('button'); b.className='skitem'; b.type='button';
+    b.innerHTML='<span class="ico"></span><span class="txt"><b></b><span class="d"></span></span>';
+    b.querySelector('.ico').textContent=sk.icon;
+    b.querySelector('b').textContent=sk.name;
+    b.querySelector('.d').textContent=sk.desc;
+    b.onclick=()=>{ $('skPick').hidden=true; pickedSkill=sk.id; launchCopilot(sk.id); };
+    g.appendChild(b);
+  }
+  $('skPick').hidden=false;
+}
+$('skCancel').onclick=()=>{ $('skPick').hidden=true; };
+
+function launchCopilot(skill){
   copilotReady=false; copilotBuf=[];
-  // Media pantalla derecha: el copiloto queda al lado sin taparte los subtítulos.
-  // (No podemos mover ESTA ventana —el navegador solo deja recolocar las que
-  // abre el propio script—, pero sí colocar la del copiloto donde toca.)
   const sw=screen.availWidth||1280, sh=screen.availHeight||800, sl=screen.availLeft||0, st=screen.availTop||0;
   const w=Math.max(420,Math.floor(sw/2)), h=sh;
-  copilotWin=window.open(CLAW+'/?copilot=1','elffuss-copilot',
+  copilotWin=window.open(CLAW+'/?copilot=1&skill='+encodeURIComponent(skill),'elffuss-copilot',
     `popup=yes,width=${w},height=${h},left=${sl+sw-w},top=${st}`);
-  if(copilotWin){ $('copilot').classList.add('on'); $('copilot').textContent='Cerrar copiloto'; }
+  if(copilotWin){ $('copilot').classList.add('on'); $('copilot').textContent='Cerrar skill'; }
+}
+$('copilot').onclick=()=>{
+  if(copilotWin && !copilotWin.closed){ try{copilotWin.close();}catch{} copilotReset(); closeSurface(); return; }
+  openSkillPicker();
 };
-// si cierras la ventana del copiloto a mano, el botón vuelve a su estado
 setInterval(()=>{ if(copilotWin && copilotWin.closed) copilotReset(); }, 1500);
+
+// ── superficie proyectada: la vista de la skill, DENTRO del translator ──
+let surfaceOn=false;
+function showSurface(html){
+  $('surfFrame').srcdoc=html; document.body.classList.add('withsurface'); surfaceOn=true;
+}
+function closeSurface(){ document.body.classList.remove('withsurface'); $('surfFrame').srcdoc=''; surfaceOn=false; }
+$('surfClose').onclick=closeSurface;
+
 window.__copilot={ ready:()=>copilotReady, send:copilotSend, open:()=>$('copilot').click() };
 
 // ── flujo de arranque: elegir idiomas → consentir → descargar todo → conversar ──
@@ -429,7 +497,11 @@ document.addEventListener('visibilitychange',()=>{
     // Al ocultarse, SIEMPRE soltar el TTS: si se queda hablando, su onend no
     // llega nunca y el medio-dúplex deja la app sorda al volver.
     ttsRelease();
-    if(convOn && convCtx && convCtx.state==='running'){ try{convCtx.suspend();}catch{} convPaused=true; setStatus('Pausado en segundo plano — ahorro de batería.','work'); }
+    // OJO: con el copiloto abierto NO se pausa. Su ventana tapa al translator y
+    // Chrome lo marca «oculto», pero es uso normal: si pausáramos, dejaría de
+    // escuchar justo cuando más falta hace.
+    const copilotOpen = !!(copilotWin && !copilotWin.closed);
+    if(!copilotOpen && convOn && convCtx && convCtx.state==='running'){ try{convCtx.suspend();}catch{} convPaused=true; setStatus('Pausado en segundo plano — ahorro de batería.','work'); }
   } else if(convOn && convPaused){
     ttsRelease(); convBusy=false;               // volver siempre en limpio
     convPaused=false;

@@ -2,95 +2,131 @@
 
 # Elffuss Translator
 
-**Traducción de conversaciones en tiempo real, 100 % en tu navegador.**
+**Real-time conversation translation, 100% in your browser.**
 
-Escucha, distingue quién habla, traduce y responde por voz.
-Sin servidor, sin cuenta, sin API de pago — nada de lo que digas sale de tu máquina.
+It listens, tells speakers apart, translates and speaks back.
+No server, no account, no paid API — nothing you say ever leaves your machine.
 
-[**▶ Abrir la app**](https://translator.elffuss.utopiaia.com) · [Elffuss](https://elffuss.utopiaia.com) · Apache-2.0
+[**▶ Open the app**](https://translator.elffuss.utopiaia.com) · [Elffuss](https://elffuss.utopiaia.com) · Apache-2.0
 
 </div>
 
 ---
 
-## El copiloto en vivo
+## Live skills: a meeting facilitator that costs nothing
 
-El translator no solo traduce: puede **pasarle la conversación a [Elffuss Claw](https://github.com/KikoCis/elffuss-claw)**, que actúa de copiloto y te va soplando qué decir mientras hablas. Un vendedor habla español, el cliente inglés, y en la otra ventana los objetivos de la llamada se van cumpliendo solos.
+The translator does more than translate. It can hand the conversation to
+[Elffuss Claw](https://github.com/KikoCis/elffuss-claw), which runs a **live audio skill**
+and works while you talk. Pick one when you hit **Skills en vivo**:
 
-![Demo: llamada de ventas con traducción en vivo y copiloto](docs/demo.gif)
+| | Skill | What it does |
+|---|---|---|
+| 🎯 | **Sales copilot** | Feeds you the exact line to say and tracks the call's objectives. |
+| 📇 | **Customer card** | Fills a customer record by itself from what the client says. Exports to Excel. |
+| 🧑‍🏫 | **Meeting facilitator** | Topics, decisions and action items, live. Exports. |
+| 📝 | **Summary & ideas** | A running summary plus the ideas that come up. |
+
+Each skill paints its own **surface**: a live view that renders *inside the translator*,
+next to the subtitles — not just a notification. It updates as the conversation goes on
+and, where it makes sense, exports what it captured as a spreadsheet.
+
+![Demo: sales call with live translation and the copilot surface](docs/demo.gif)
 
 <div align="center"><sub>
 
-Demo guionizada para enseñar el flujo · [vídeo completo con audio](docs/demo.mp4)
+**Staged recreation** of the flow (scripted dialogue and timings), not a screen recording of a live run ·
+[full video with audio](docs/demo.mp4)
 
 </sub></div>
 
-Los dos dominios son distintos, así que la tubería va por `postMessage` con validación de origen: el translator manda cada intervención (`[Hablante N] …`), Claw responde con una línea accionable y el estado de los objetivos, y el consejo vuelve a aparecer sobre los subtítulos.
+Skills are defined as plain `SKILL.md` files and are **self-editing**: ask in Claw's chat for
+"add an email field" or "keep the advice shorter" and the skill rewrites itself.
 
-## Qué hace
+## How the surface gets there
 
-- **Modo conversación**: un solo micrófono, manos libres. Detecta los turnos por energía, separa **quién habla** por su voz y enruta cada turno al idioma del otro.
-- **Subtítulos** con el original y la traducción debajo, creciendo hacia abajo como en una llamada real.
-- **Voz**: lee la traducción en alto — o la silencias con un botón y sigue traduciendo y subtitulando igual.
-- **Medio dúplex**: mientras habla, no se escucha a sí mismo. Sin esto, entra en bucle traduciendo su propia voz.
-- **Ahorro de batería**: en segundo plano se pausa; al volver, se recupera solo.
-- **Offline de verdad**: descargas los modelos una vez, quedan cacheados y luego funciona sin red.
+The two apps live on different origins, so the pipe is `postMessage` with origin checks on
+both ends. The skill's view is **projected** from Claw into the translator and rendered in a
+sandboxed iframe (`allow-scripts` only — never `allow-same-origin`, so it can't reach back
+into the page that hosts it):
 
-## El stack, todo ONNX en el navegador
+```
+translator ──[hablante + texto]──▶  Claw  ──▶ model ──▶ CONSEJO / DATOS
+    ▲                                 │
+    └───[surface html + state]────────┘        (rendered sandboxed, right-hand panel)
+```
 
-| Pieza | Modelo |
+This is written up as a small spec — see **[Skill Surface Protocol](https://github.com/KikoCis/elffuss-claw)**.
+
+## What it does
+
+- **Conversation mode**: one microphone, hands free. It finds the turns by energy, tells
+  **who is speaking** from their voice, and routes each turn into the other language.
+- **Subtitles** with the original and the translation underneath, growing downward like a real call.
+- **Voice**: reads the translation out loud — or mute it and keep translating and subtitling.
+- **Half duplex**: it doesn't listen to itself while speaking. Without this it loops, translating its own voice.
+- **Battery aware**: pauses in the background and recovers on its own (and never pauses while a live skill is running).
+- **Actually offline**: download the models once, they stay cached, and it works with no network.
+
+## The stack, all ONNX in the browser
+
+| Piece | Model |
 |---|---|
-| **ASR** | `whisper-base` (WebGPU con caída a WASM) |
-| **Diarización** | `pyannote-segmentation-3.0` (habla/silencio) + `wespeaker-voxceleb-resnet34-LM` (embeddings de hablante) |
-| **Traducción** | Translator API on-device del navegador, con `opus-mt` (transformers.js) de reserva |
-| **Voz** | `speechSynthesis` del sistema |
+| **ASR** | `whisper-base` (WebGPU, falls back to WASM) |
+| **Diarization** | `pyannote-segmentation-3.0` (speech/silence) + `wespeaker-voxceleb-resnet34-LM` (speaker embeddings) |
+| **Translation** | The browser's on-device Translator API, with `opus-mt` (transformers.js) as fallback |
+| **Voice** | The system's `speechSynthesis` |
 
-Corre sobre [transformers.js](https://github.com/huggingface/transformers.js) y ONNX Runtime Web. Sin framework y sin *build*: HTML y ES modules, se sirve como ficheros estáticos.
+Runs on [transformers.js](https://github.com/huggingface/transformers.js) and ONNX Runtime Web.
+No framework and no build step: HTML and ES modules, served as static files.
 
-## Cómo funciona la diarización
+## Using the diarizer on its own
 
-`diarize.mjs` es autónomo y se puede usar suelto:
+`diarize.mjs` is standalone:
 
 ```js
-import { loadDiarizer, diarize, makeSpeakerBook } from './diarize.mjs';
+import { loadDiarizer, diarize, makeSpeakerBook, speakerVec } from './diarize.mjs';
 
 const D = await loadDiarizer(transformers, { device: 'webgpu' });
 
-// (a) troceado por turnos de un audio ya grabado
-const turns = await diarize(D, audio16k);   // [{ start, end, speaker }]
+// (a) split a recorded clip into turns
+const turns = await diarize(D, audio16k);        // [{ start, end, speaker }]
 
-// (b) en vivo: asigna cada fragmento a un hablante estable
+// (b) live: assign each chunk to a stable speaker
 const book = makeSpeakerBook({ tau: 0.5, maxSpeakers: 2 });
-const { label } = book.assign(await speakerVec(D, fragmento16k)); // 'S1' | 'S2'
+const { label } = book.assign(await speakerVec(D, chunk16k));   // 'S1' | 'S2'
 ```
 
-Segmentación → embeddings por sub-ventana → agrupación por coseno. Dos fragmentos del mismo hablante rondan 0.8 de similitud; de hablantes distintos, ~0.15.
+Segmentation → per-window embeddings → cosine clustering. Two chunks from the same speaker
+land around 0.8 similarity; different speakers, about 0.15.
 
-## Bordes honestos
+## Honest edges
 
-- **La primera carga son megas.** Le mandas el modelo al usuario una vez; después vive en caché.
-- **Separar voces simultáneas en un micro mono no es fiable**: el hablante más fuerte domina el embedding. La diarización **por turnos** sí funciona; para solapamiento real hace falta una captura por interlocutor.
-- **Whisper alucina con el silencio.** Hay un umbral de energía y un filtro de muletillas típicas ("Subtítulos por…"), pero alguna se cuela.
-- **Chrome/Edge** para WebGPU. Sin él cae a CPU y va más lento.
-- La calidad de la voz es la del sistema operativo, que varía bastante entre idiomas.
+- **The first load is a download.** You ship the model to the user once; after that it lives in cache.
+- **Separating simultaneous voices on a mono mic is not reliable** — the louder speaker dominates the
+  embedding. Turn-by-turn diarization does work; real overlap needs one capture per speaker.
+- **Whisper hallucinates on silence.** There's an energy gate and a filter for the usual filler
+  ("Subtitles by…"), but some still slips through.
+- **Chrome/Edge** for WebGPU. Without it, it falls back to CPU and gets slower.
+- Voice quality is whatever the operating system provides, which varies a lot by language.
 
-## Ficheros
+## Files
 
 | | |
 |---|---|
-| `index.html` | La app completa: UI, captura, pipeline y tubería con Claw. |
-| `diarize.mjs` | Motor de diarización (segmentación + embeddings + clustering). |
+| `index.html` | The whole app: UI, capture, pipeline, live-skill picker and the pipe to Claw. |
+| `diarize.mjs` | Diarization engine (segmentation + embeddings + clustering). |
 
-## Servirlo tú mismo
+## Hosting it yourself
 
-Son ficheros estáticos; cualquier servidor vale. Un único cuidado: **los `.mjs` deben servirse como JavaScript**, o el navegador bloquea el módulo. En nginx:
+Static files; any server works. One catch: **`.mjs` must be served as JavaScript**, or the
+browser refuses the module. In nginx:
 
 ```nginx
 location ~ \.mjs$ { default_type text/javascript; }
 ```
 
-Y conviene servirlo por HTTPS: el micrófono y WebGPU lo exigen fuera de `localhost`.
+Serve it over HTTPS — the microphone and WebGPU require it outside `localhost`.
 
-## Licencia
+## License
 
 Apache-2.0.
