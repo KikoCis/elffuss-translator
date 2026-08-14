@@ -4,122 +4,147 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Elffuss Translator · conversación en tiempo real, offline</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0d10'/%3E%3Ctext x='16' y='23' font-family='Georgia,serif' font-size='19' fill='%23b79268' text-anchor='middle'%3EE%3C/text%3E%3C/svg%3E">
+
 <style>
-  :root{--bg:#0b0d10;--panel:#101317;--line:#20252c;--fg:#e8eaed;--mut:#8b929c;--accent:#b79268;--sig:#7f9cc0;--ok:#7faa7f;--warn:#c9a15a;--rec:#c0655a}
+  :root{--bg:#090a11;--panel:#101317;--surface:22,23,38;--line:#20252c;--fg:#eae8f2;--mut:#8b929c;--accent:#c8a06a;--accent-2:#e6c294;--sig:#7f9cc0;--ok:#7faa7f;--warn:#c9a15a;--rec:#c0655a;--teal:#54dcc6;--indigo:#8272ff;--magenta:#e779cf;--ease:cubic-bezier(.22,.61,.36,1);--serif:"Iowan Old Style",Georgia,"Times New Roman",serif}
   *{box-sizing:border-box;margin:0}
-  body{font-family:-apple-system,system-ui,"Segoe UI",sans-serif;background:var(--bg);color:var(--fg);min-height:100vh;display:flex;flex-direction:column;font-size:15px}
-  header{padding:16px 24px;display:flex;align-items:baseline;gap:14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-  header h1{font-family:Georgia,"Times New Roman",serif;font-size:1.2rem;font-weight:600;letter-spacing:.2px}
+  body{font-family:-apple-system,system-ui,"Segoe UI",sans-serif;background:var(--bg);color:var(--fg);height:100vh;display:flex;flex-direction:column;font-size:15px;overflow:hidden;position:relative}
+  .aurora{position:fixed;inset:-20% -10%;z-index:-3;pointer-events:none;filter:blur(40px) saturate(115%);background:radial-gradient(38% 42% at 20% 18%,rgba(84,220,198,.13),transparent 70%),radial-gradient(42% 46% at 82% 14%,rgba(130,114,255,.17),transparent 72%),radial-gradient(48% 52% at 66% 82%,rgba(231,121,207,.11),transparent 74%),radial-gradient(52% 56% at 10% 84%,rgba(200,160,106,.10),transparent 76%);animation:auroradrift 36s ease-in-out infinite alternate}
+  @keyframes auroradrift{0%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(2.5%,-2%,0) scale(1.06)}100%{transform:translate3d(-2%,2.5%,0) scale(1.03)}}
+  .cursorglow{position:fixed;inset:0;z-index:-1;pointer-events:none;mix-blend-mode:screen;background:radial-gradient(340px 340px at var(--mx,50%) var(--my,28%),rgba(200,160,106,.13),rgba(130,114,255,.08) 44%,transparent 68%)}
+  @media(prefers-reduced-motion:reduce){.aurora{animation:none}}
+  header{padding:14px 24px;display:flex;align-items:baseline;gap:14px;border-bottom:1px solid var(--line);flex-wrap:wrap;flex:0 0 auto}
+  header h1{font-family:Georgia,"Times New Roman",serif;font-size:1.15rem;font-weight:600;letter-spacing:.2px}
   header .sub{font-size:.68rem;color:var(--mut);text-transform:uppercase;letter-spacing:.16em}
   header .hnav{margin-left:auto;display:flex;align-items:center;gap:16px}
   header .hnav a{color:var(--accent);text-decoration:none;font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;border-bottom:1px solid transparent;padding-bottom:1px}
   header .hnav a:hover{border-color:var(--accent)}
   header .badge{font-size:.64rem;color:var(--mut);text-transform:uppercase;letter-spacing:.1em;border:1px solid var(--line);border-radius:2px;padding:4px 9px;white-space:nowrap}
-  @media(max-width:560px){ header{padding:13px 18px;gap:8px 12px} header .sub{display:none} header .hnav{gap:12px} }
-  .bar{max-width:840px;margin:0 auto;width:100%;padding:16px 24px 0;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-  .conv{background:transparent;color:var(--accent);border:1px solid var(--line);border-radius:3px;padding:9px 16px;font-weight:600;cursor:pointer;font-size:.82rem;letter-spacing:.02em;transition:border-color .15s}
-  .conv:hover{border-color:var(--accent)}
-  .conv.on{color:var(--rec);border-color:var(--rec)}
-  .sides{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 24px;max-width:840px;margin:0 auto;width:100%}
-  .side{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:20px;text-align:center;position:relative}
-  .side.active{border-color:var(--accent)}
-  select{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:3px;padding:10px;font:inherit;margin-bottom:18px}
-  .mic{width:76px;height:76px;border-radius:50%;border:1px solid var(--line);background:transparent;cursor:pointer;color:var(--fg);transition:border-color .15s,transform .1s;display:inline-flex;align-items:center;justify-content:center}
-  .mic svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:1.6}
-  .mic:hover{border-color:var(--accent)} .mic:active{transform:scale(.95)}
-  .mic:disabled{opacity:.4;cursor:not-allowed}
-  .mic.rec{color:var(--rec);border-color:var(--rec)}
-  @keyframes pulse{50%{box-shadow:0 0 0 10px rgba(192,101,90,.12)}}
-  .hint{font-size:.72rem;color:var(--mut);margin-top:12px;min-height:1.2em;text-transform:uppercase;letter-spacing:.08em}
-  .hint.err{color:var(--rec)} .hint.work{color:var(--warn)}
-  .log{flex:1;overflow:auto;padding:8px 24px 22px;max-width:840px;margin:0 auto;width:100%;display:flex;flex-direction:column;gap:0}
-  .bub{max-width:82%;padding:12px 0;border-bottom:1px solid var(--line)}
-  .bub .who{font-size:.62rem;text-transform:uppercase;letter-spacing:.12em;color:var(--sig);margin-bottom:3px}
-  .bub.B .who{color:var(--accent)}
-  .bub .src{color:var(--mut);font-size:.86rem;margin-bottom:3px} .bub .tr{font-weight:500;line-height:1.5}
-  .bub.A{align-self:flex-start} .bub.B{align-self:flex-end;text-align:right}
-  .status{text-align:center;font-size:.7rem;color:var(--mut);padding:8px;text-transform:uppercase;letter-spacing:.1em}
+  @media(max-width:560px){ header{padding:12px 18px;gap:8px 12px} header .sub{display:none} }
+  select{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:3px;padding:11px;font:inherit}
+  .screen{flex:1;display:flex;flex-direction:column;min-height:0}
+  .screen[hidden]{display:none}
+  /* ── setup ── */
+  #setup{align-items:center;justify-content:center;padding:24px;overflow:auto}
+  .setupcard{max-width:460px;width:100%;text-align:center;background:linear-gradient(180deg,rgba(var(--surface),.5),rgba(var(--surface),.28));border:1px solid var(--line);border-radius:16px;padding:34px 30px;backdrop-filter:blur(14px)}
+  .setupcard h2{font-family:var(--serif);font-size:1.7rem;font-weight:600;margin-bottom:12px;letter-spacing:-.2px;background:linear-gradient(96deg,var(--accent-2),var(--fg) 46%,var(--indigo) 124%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .setupcard .lead{color:var(--mut);font-size:.92rem;line-height:1.55;margin-bottom:26px}
+  .pick{display:flex;align-items:flex-end;gap:12px;justify-content:center;margin-bottom:16px}
+  .fld{flex:1;text-align:left;font-size:.64rem;text-transform:uppercase;letter-spacing:.13em;color:var(--mut);display:flex;flex-direction:column;gap:7px}
+  .pick .swap{color:var(--accent);font-size:1.2rem;padding-bottom:11px}
+  .microw{margin-bottom:22px}
+  .primary{width:100%;background:var(--accent);color:#141009;border:none;border-radius:4px;padding:15px;font-weight:700;font-size:.98rem;cursor:pointer;letter-spacing:.02em}
+  .primary:hover{filter:brightness(1.06)} .primary:disabled{opacity:.5;cursor:default}
+  .setupcard .fine{font-size:.72rem;color:var(--mut);margin-top:16px;line-height:1.5}
+  /* ── conversación ── */
+  .convtop{display:flex;align-items:center;gap:12px;padding:14px 24px;border-bottom:1px solid var(--line);max-width:860px;margin:0 auto;width:100%;flex:0 0 auto}
+  .pair{font-family:Georgia,serif;font-size:1.1rem;font-weight:600}
+  .convtop .toggle{background:transparent;color:var(--rec);border:1px solid var(--line);border-radius:3px;padding:8px 15px;font-weight:600;font-size:.78rem;cursor:pointer;letter-spacing:.02em}
+  .convtop .toggle.paused{color:var(--accent)}
+  .convtop #copilot{margin-left:auto;color:var(--accent)} .convtop #copilot.on{color:var(--ok);border-color:var(--ok)}
+  .wave{display:block;max-width:640px;width:100%;height:54px;margin:14px auto 6px;flex:0 0 auto}
+  .status{text-align:center;font-size:.7rem;color:var(--mut);padding:4px 16px;text-transform:uppercase;letter-spacing:.1em;flex:0 0 auto}
   .status.err{color:var(--rec)} .status.work{color:var(--warn)}
-  footer{text-align:center;font-size:.68rem;color:var(--mut);padding:12px;letter-spacing:.02em}
+  .advice{max-width:860px;margin:8px auto 0;width:100%;padding:0 24px;flex:0 0 auto} .advice[hidden]{display:none}
+  .advice .box{border:1px solid var(--accent);border-radius:9px;padding:12px 15px;background:rgba(200,160,106,.09);display:flex;gap:12px;align-items:flex-start;animation:advin .3s var(--ease)}
+  @keyframes advin{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+  .advice .k{font-family:ui-monospace,monospace;font-size:.62rem;text-transform:uppercase;letter-spacing:.14em;color:var(--accent);padding-top:3px;white-space:nowrap}
+  .advice .t{color:var(--accent-2);font-weight:500;line-height:1.45}
+  .subs{flex:1 1 auto;overflow-y:auto;padding:10px 24px 26px;max-width:860px;margin:0 auto;width:100%;display:flex;flex-direction:column;gap:0}
+  .sub{padding:13px 0;border-bottom:1px solid var(--line);max-width:88%;animation:rise .25s ease}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .sub.a{align-self:flex-start} .sub.b{align-self:flex-end;text-align:right}
+  .sub .who{font-size:.62rem;text-transform:uppercase;letter-spacing:.13em;color:var(--sig);margin-bottom:5px}
+  .sub.b .who{color:var(--accent)}
+  .sub .src{color:var(--mut);font-size:.86rem;margin-bottom:4px;line-height:1.4}
+  .sub .tr{font-size:1.1rem;font-weight:500;line-height:1.45}
+  .empty{color:var(--mut);font-style:italic;text-align:center;margin:auto;font-size:.85rem}
+  footer{text-align:center;font-size:.66rem;color:var(--mut);padding:10px;letter-spacing:.02em;flex:0 0 auto;border-top:1px solid var(--line)}
   footer a{color:var(--accent);text-decoration:none} footer a:hover{text-decoration:underline}
-  .note{max-width:840px;margin:0 auto 4px;width:100%;padding:0 24px;font-size:.72rem;color:var(--mut);text-align:center;line-height:1.5}
-
-  /* ── modal de consentimiento ── */
-  .scrim{position:fixed;inset:0;background:rgba(6,8,11,.8);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+  /* ── modal + progreso ── */
+  .scrim{position:fixed;inset:0;background:rgba(6,8,11,.82);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
   .scrim[hidden]{display:none}
-  .modal-card{background:var(--panel);border:1px solid var(--line);border-radius:5px;max-width:430px;width:100%;padding:30px;text-align:center}
+  .modal-card{background:var(--panel);border:1px solid var(--line);border-radius:5px;max-width:440px;width:100%;padding:30px;text-align:center}
   .modal-card h2{font-family:Georgia,serif;font-size:1.2rem;font-weight:600;margin-bottom:12px}
   .modal-card p{font-size:.86rem;color:#c3c9d0;line-height:1.55;margin-bottom:10px}
-  .modal-card .big{font-family:Georgia,serif;font-size:1.9rem;font-weight:600;color:var(--accent);display:block;margin:6px 0 4px}
-  .modal-card .fine{font-size:.76rem;color:var(--mut)}
+  .modal-card .big{font-family:Georgia,serif;font-size:1.9rem;font-weight:600;color:var(--accent);display:block;margin:8px 0 4px}
+  .dllist{text-align:left;margin:14px 0 4px;font-size:.82rem}
+  .dllist .it{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);color:#c3c9d0}
+  .dllist .it b{color:var(--fg);font-weight:600}
+  .dllist .it span{color:var(--mut)}
   .modal-card .chips{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin:16px 0 4px}
-  .modal-card .chip{font-size:.68rem;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
-  .modal-card .chip b{color:var(--ok);font-weight:600}
+  .modal-card .chip{font-size:.66rem;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
   .warnbat{font-size:.78rem;color:var(--warn);border:1px solid rgba(201,161,90,.3);border-radius:3px;padding:9px 11px;margin-top:14px;line-height:1.45}
   .warnbat[hidden]{display:none}
   .row{display:flex;gap:10px;margin-top:22px}
   .row button{flex:1;border:1px solid var(--line);border-radius:3px;padding:12px;font-weight:600;font-size:.86rem;cursor:pointer;letter-spacing:.02em}
   .row .ghost{background:transparent;color:var(--mut)}
-  .row .go{background:var(--accent);color:#151109;border-color:var(--accent)}
-  /* ── overlay de progreso ── */
-  .prog-card{background:var(--panel);border:1px solid var(--line);border-radius:5px;max-width:360px;width:100%;padding:30px;text-align:center}
-  .ring{position:relative;width:128px;height:128px;margin:0 auto 16px}
-  .ring svg{transform:rotate(-90deg);width:128px;height:128px}
+  .row .go{background:var(--accent);color:#141009;border-color:var(--accent)}
+  .prog-card{background:var(--panel);border:1px solid var(--line);border-radius:5px;max-width:380px;width:100%;padding:32px;text-align:center}
+  .ring{position:relative;width:132px;height:132px;margin:0 auto 16px}
+  .ring svg{transform:rotate(-90deg);width:132px;height:132px}
   .ring circle{fill:none;stroke-width:6}
-  .ring .bgc{stroke:var(--line)}
-  .ring .fgc{stroke:var(--accent);transition:stroke-dashoffset .25s ease}
-  .ring .pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-size:1.7rem;font-weight:600}
-  .dlmsg{font-weight:600;font-size:.95rem;margin-bottom:4px}
+  .ring .bgc{stroke:var(--line)} .ring .fgc{stroke:var(--accent);transition:stroke-dashoffset .25s ease}
+  .ring .pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-size:1.8rem;font-weight:600}
+  .dlmsg{font-weight:600;font-size:.98rem;margin-bottom:4px}
   .dlsub{font-size:.72rem;color:var(--ok);margin-bottom:10px;text-transform:uppercase;letter-spacing:.08em}
   .dlfile{font-size:.7rem;color:var(--mut);font-family:ui-monospace,monospace;min-height:1.1em;word-break:break-all}
-  .dlbytes{font-size:.8rem;color:#c3c9d0;margin-top:2px}
+  .dlbytes{font-size:.82rem;color:#c3c9d0;margin-top:2px}
 </style>
 </head>
 <body>
+<div class="aurora"></div><div class="cursorglow" id="cursorglow"></div>
 <header>
-  <h1>Elffuss Translator</h1><span class="sub">local · offline · en tu navegador</span>
+  <h1 style="font-family:var(--serif)">Elffuss Translator</h1><span class="sub">local · offline · en tu navegador</span>
   <nav class="hnav">
     <a href="https://github.com/KikoCis/elffuss-translator" target="_blank" rel="noopener">Código</a>
-    <span class="badge" id="badge">Whisper + Kokoro</span>
   </nav>
 </header>
 
-<div class="bar">
-  <button class="conv" id="conv">Modo conversación</button>
-</div>
-<div class="note">Pulsa un micro y habla (vuelve a pulsar para parar) — o activa <b>Modo conversación</b>: un solo micro, manos libres, y separa <b>quién habla</b> por su voz y lo enruta. Todo en tu GPU.</div>
-
-<div class="sides">
-  <div class="side A" id="sideA">
-    <select id="langA"></select>
-    <button class="mic" id="micA" title="Pulsa para hablar"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></button>
-    <div class="hint" id="hintA">pulsa y habla</div>
+<!-- SETUP -->
+<main id="setup" class="screen">
+  <div class="setupcard">
+    <h2>Traductor de conversación</h2>
+    <p class="lead">Dos personas, dos idiomas, un micrófono. Traduce por voz en tiempo real y separa quién habla — todo en tu navegador, sin nube.</p>
+    <div class="pick">
+      <label class="fld">Idioma 1<select id="langA"></select></label>
+      <span class="swap">⇄</span>
+      <label class="fld">Idioma 2<select id="langB"></select></label>
+    </div>
+    <label class="fld microw">Micrófono<select id="micDev"><option value="">Por defecto</option></select></label>
+    <button id="start" class="primary">Empezar</button>
+    <p class="fine">La primera vez descarga los modelos (una vez, luego en caché y offline). Nada sale de tu equipo.</p>
   </div>
-  <div class="side B" id="sideB">
-    <select id="langB"></select>
-    <button class="mic" id="micB" title="Pulsa para hablar"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></button>
-    <div class="hint" id="hintB">pulsa y habla</div>
-  </div>
-</div>
+</main>
 
-<div class="status" id="status">Escucha, traduce y habla — todo en tu navegador, sin enviar nada a la nube.</div>
-<div class="log" id="log"></div>
+<!-- CONVERSACIÓN -->
+<main id="convo" class="screen" hidden>
+  <div class="convtop">
+    <span class="pair" id="pairLabel">—</span>
+    <button id="copilot" class="toggle paused" title="Abre Claw y te sopla argumentos de venta en vivo">Copiloto</button>
+    <button id="mute" class="toggle" title="Silenciar la voz: sigue traduciendo y mostrando subtítulos, pero sin hablar">🔊 Voz</button>
+    <button id="toggle" class="toggle">Parar</button>
+  </div>
+  <canvas class="wave" id="wave" width="640" height="54"></canvas>
+  <div class="status" id="status">Escuchando…</div>
+  <div class="advice" id="advice" hidden><div class="box"><span class="k">Copiloto</span><span class="t"></span></div></div>
+  <div class="subs" id="log"><div class="empty" id="emptyMsg">Habla y aparecerá aquí, con la traducción debajo.</div></div>
+</main>
+
 <footer>La versión navegador de la Gemma Translator: local, offline, sin cuenta. · Código abierto en <a href="https://github.com/KikoCis/elffuss-translator" target="_blank" rel="noopener">GitHub</a> · <a href="https://elffuss.utopiaia.com" target="_blank" rel="noopener">elffuss</a></footer>
 
 <!-- consentimiento -->
 <div class="scrim" id="dlModal" hidden>
   <div class="modal-card">
-    <h2>Primero, descargar el modelo de voz</h2>
-    <p>Elffuss Translator corre la IA <b>dentro de tu navegador</b>, en tu propia GPU. Para eso, la primera vez descarga el modelo:</p>
-    <span class="big" id="dlSize">~1,5 GB</span>
-    <p class="fine" id="dlWhat">voz de alta calidad (Whisper-turbo)</p>
-    <div class="chips">
-      <span class="chip">Una sola vez</span>
-      <span class="chip">Luego en caché</span>
-      <span class="chip">Funciona offline</span>
-      <span class="chip">Nada sale de tu equipo</span>
-    </div>
+    <h2>Descargar los modelos</h2>
+    <p>Elffuss Translator corre la IA <b>dentro de tu navegador</b>. La primera vez descarga:</p>
+    <div class="dllist" id="dlList"></div>
+    <span class="big" id="dlSize">~150 MB</span>
     <p class="warnbat" id="dlWarn" hidden></p>
+    <div class="modal-card-chips chips">
+      <span class="chip">Una sola vez</span><span class="chip">Luego en caché</span><span class="chip">Offline</span>
+    </div>
     <div class="row"><button class="ghost" id="dlNo">Ahora no</button><button class="go" id="dlYes">Descargar y empezar</button></div>
   </div>
 </div>
@@ -127,12 +152,8 @@
 <!-- progreso -->
 <div class="scrim" id="dlProg" hidden>
   <div class="prog-card">
-    <div class="ring">
-      <svg viewBox="0 0 132 132"><defs><linearGradient id="grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#ff5cd6"/></linearGradient></defs>
-        <circle class="bgc" cx="66" cy="66" r="56"/><circle class="fgc" id="ringFg" cx="66" cy="66" r="56"/></svg>
-      <div class="pct" id="dlPct">0%</div>
-    </div>
-    <div class="dlmsg" id="dlMsg">Descargando el cerebro…</div>
+    <div class="ring"><svg viewBox="0 0 132 132"><circle class="bgc" cx="66" cy="66" r="56"/><circle class="fgc" id="ringFg" cx="66" cy="66" r="56"/></svg><div class="pct" id="dlPct">0%</div></div>
+    <div class="dlmsg" id="dlMsg">Descargando…</div>
     <div class="dlsub">se queda en caché · después funciona offline</div>
     <div class="dlbytes" id="dlBytes"></div>
     <div class="dlfile" id="dlFile"></div>
@@ -143,11 +164,11 @@
 import { loadDiarizer, speakerVec, makeSpeakerBook } from './diarize.mjs';
 const LANGS=[['es','Español'],['en','English'],['fr','Français'],['de','Deutsch'],['it','Italiano'],['pt','Português'],['ca','Català'],['nl','Nederlands'],['ru','Русский'],['uk','Українська']];
 const $=id=>document.getElementById(id);
+const nameOf=c=>(LANGS.find(l=>l[0]===c)||[,c])[1];
 const speechLocale={es:'es-ES',en:'en-US',fr:'fr-FR',de:'de-DE',it:'it-IT',pt:'pt-PT',ca:'ca-ES',nl:'nl-NL',ru:'ru-RU',uk:'uk-UA'};
 for(const sel of [$('langA'),$('langB')]) sel.innerHTML=LANGS.map(([c,n])=>`<option value="${c}">${n}</option>`).join('');
 $('langA').value='es'; $('langB').value='en';
-const setStatus=(t,cls='')=>{ const s=$('status'); s.textContent=t; s.className='status '+cls; };
-const setHint=(side,t,cls='')=>{ const h=$('hint'+side); h.textContent=t; h.className='hint '+cls; };
+const setStatus=(t,cls='')=>{ const s=$('status'); if(s){ s.textContent=t; s.className='status '+cls; } };
 const rms=a=>{let s=0;for(const v of a)s+=v*v;return Math.sqrt(s/a.length);};
 
 // ── device + energía ──
@@ -156,17 +177,13 @@ const isMobile=/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (na
 let onBattery=false, batteryLevel=1;
 if(navigator.getBattery){ navigator.getBattery().then(b=>{ const upd=()=>{ onBattery=!b.charging; batteryLevel=b.level; }; upd(); b.addEventListener('chargingchange',upd); b.addEventListener('levelchange',upd); }).catch(()=>{}); }
 const deviceReady=(async()=>{ try{ if(navigator.gpu && await navigator.gpu.requestAdapter()) DEVICE='webgpu'; }catch{}
-  // En móvil NO usamos el modelo pesado (turbo ~1,5 GB): descarga y batería lo hacen inviable.
-  USE_TURBO = DEVICE==='webgpu' && !isMobile;
-  $('badge').textContent=(USE_TURBO?'Whisper-turbo + Kokoro · GPU':(isMobile?'Whisper-base · móvil':'Whisper-base · CPU'))+' · offline'; })();
+  USE_TURBO = DEVICE==='webgpu' && !isMobile; })();
 
-// ── overlay de progreso (compartido por todas las descargas) ──
-const DL={files:new Map()};
-const RC=2*Math.PI*56;
+// ── progreso ──
+const DL={files:new Map()}; const RC=2*Math.PI*56;
 const fmtMB=b=>b>=1073741824?(b/1073741824).toFixed(2)+' GB':(b/1048576).toFixed(0)+' MB';
 function dlProgress(e){ if(!e) return;
-  if(e.file && (e.status==='progress'||e.status==='download'||e.status==='done')){
-    const prev=DL.files.get(e.file)||{loaded:0,total:0};
+  if(e.file && (e.status==='progress'||e.status==='download'||e.status==='done')){ const prev=DL.files.get(e.file)||{loaded:0,total:0};
     DL.files.set(e.file,{loaded:e.status==='done'?(e.total||prev.total||prev.loaded):(e.loaded||prev.loaded), total:e.total||prev.total}); }
   let loaded=0,total=0; for(const v of DL.files.values()){loaded+=v.loaded;total+=v.total;}
   const pct= total?Math.min(100,Math.round(loaded/total*100)):0;
@@ -174,61 +191,48 @@ function dlProgress(e){ if(!e) return;
   $('ringFg').style.strokeDasharray=RC; $('ringFg').style.strokeDashoffset=RC*(1-pct/100);
   $('dlBytes').textContent= total?`${fmtMB(loaded)} / ${fmtMB(total)}`:fmtMB(loaded);
   $('dlFile').textContent= e.file?e.file.split('/').pop():''; }
+function dlShow(msg){ if(msg)$('dlMsg').textContent=msg; $('dlProg').hidden=false; }
 function dlDone(){ $('dlProg').hidden=true; DL.files.clear(); }
 
-// ── consentimiento (una vez, recordado) ──
-let consented = localStorage.getItem('elffuss_tr_dl')==='1';
-function estimate(){ return USE_TURBO
-  ? {size:'~1,5 GB', what:'voz de alta calidad (Whisper-turbo)'}
-  : {size:'~150 MB', what:'reconocimiento de voz (Whisper-base)'}; }
-function askConsent(){ return new Promise(res=>{ if(consented) return res(true);
-  const est=estimate(); $('dlSize').textContent=est.size; $('dlWhat').textContent=est.what;
-  // aviso de energía/datos: en móvil o con batería sin cargador
+// ── consentimiento ──
+function estimate(){ const gpu=DEVICE==='webgpu'&&!isMobile; return {stt: gpu?'~145 MB':'~80 MB', total: gpu?'~180 MB':'~110 MB'}; }
+function askConsent(){ return new Promise(res=>{
+  const est=estimate();
+  $('dlList').innerHTML=[
+    ['Reconocimiento de voz', 'Whisper-base · '+est.stt],
+    ['Separar quién habla', 'pyannote + wespeaker · ~32 MB'],
+    ['Traducción', 'on-device del navegador'],
+  ].map(([a,b])=>`<div class="it"><b>${a}</b><span>${b}</span></div>`).join('');
+  $('dlSize').textContent=est.total;
   const w=$('dlWarn');
-  if(isMobile || onBattery){ w.hidden=false;
-    w.innerHTML = (isMobile?'<b>Móvil:</b> uso el modelo ligero, pero aun así descarga datos y consume batería. Mejor con <b>Wi-Fi</b>. '
-                          : '<b>Batería (sin cargador):</b> correr el modelo consume energía. Te recomiendo <b>enchufar</b>' + (batteryLevel<0.99?` (batería al ${Math.round(batteryLevel*100)}%)`:'') + '.');
-  } else w.hidden=true;
+  if(isMobile||onBattery){ w.hidden=false; w.innerHTML=(isMobile?'<b>Móvil:</b> modelo ligero, pero descarga datos y gasta batería. Mejor con <b>Wi-Fi</b>.':'<b>Batería (sin cargador):</b> correr el modelo consume energía. Mejor <b>enchufado</b>.'); } else w.hidden=true;
   $('dlModal').hidden=false;
-  $('dlYes').onclick=()=>{ consented=true; try{localStorage.setItem('elffuss_tr_dl','1');}catch{} $('dlModal').hidden=true; res(true); };
+  $('dlYes').onclick=()=>{ $('dlModal').hidden=true; res(true); };
   $('dlNo').onclick=()=>{ $('dlModal').hidden=true; res(false); }; }); }
 
-// ── transformers.js ──
+// ── transformers.js + persistencia ──
 let TFmod=null;
-async function tf(){ if(!TFmod){ TFmod=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3'); TFmod.env.allowLocalModels=false; } return TFmod; }
+async function tf(){ if(!TFmod){ TFmod=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3'); TFmod.env.allowLocalModels=false; TFmod.env.useBrowserCache=true; } return TFmod; }
+const persistReady=(async()=>{ try{ if(navigator.storage&&navigator.storage.persist){ const already=navigator.storage.persisted?await navigator.storage.persisted():false; const ok=already||await navigator.storage.persist(); console.log('[elffuss] persistente:',ok); return ok; } }catch(e){} return false; })();
 
-// ── STT: Whisper (turbo GPU / base CPU, fallback seguro) ──
+// ── STT ──
 let asrP=null;
 async function getASR(){ if(asrP) return asrP;
-  asrP=(async()=>{ await deviceReady; const {pipeline}=await tf(); $('dlMsg').textContent='Descargando el reconocimiento de voz…';
-    if(USE_TURBO){ try{
-      const p=await pipeline('automatic-speech-recognition','onnx-community/whisper-large-v3-turbo',{dtype:{encoder_model:'fp16',decoder_model_merged:'q4'},device:'webgpu',progress_callback:dlProgress});
-      dlDone(); setStatus('ASR turbo listo (GPU). Habla cuando quieras.',''); return p;
-    }catch(e){ console.warn('[asr] turbo no disponible, uso base:', e.message); DL.files.clear(); } }
-    const p=await pipeline('automatic-speech-recognition','onnx-community/whisper-base',{dtype:'q8',device:'wasm',progress_callback:dlProgress});
-    dlDone(); setStatus('ASR listo. Habla cuando quieras — todo local.',''); return p;
-  })();
-  return asrP;
-}
-async function ensureASR(){ if(asrP) return true; if(!(await askConsent())) return false; await getASR(); return true; }
-async function blobTo16k(blob){ const ab=await blob.arrayBuffer(); const AC=window.AudioContext||window.webkitAudioContext; const ac=new AC();
-  const buf=await ac.decodeAudioData(ab); ac.close&&ac.close(); return resample(buf.getChannelData(0),buf.sampleRate,16000); }
+  asrP=(async()=>{ await deviceReady; await persistReady; const {pipeline}=await tf(); dlShow('Descargando reconocimiento de voz…');
+    // whisper-base para todos: ligero (~80-150 MB) y fiable. En GPU si hay (rápido), si no CPU.
+    if(DEVICE==='webgpu' && !isMobile){ try{ return await pipeline('automatic-speech-recognition','onnx-community/whisper-base',{dtype:'fp32',device:'webgpu',progress_callback:dlProgress}); }
+      catch(e){ console.warn('[asr] base webgpu falló, wasm:',e.message); DL.files.clear(); } }
+    return await pipeline('automatic-speech-recognition','onnx-community/whisper-base',{dtype:'q8',device:'wasm',progress_callback:dlProgress});
+  })(); return asrP; }
 function resample(data,inRate,outRate){ if(inRate===outRate) return data; const ratio=inRate/outRate,len=Math.round(data.length/ratio),out=new Float32Array(len);
   for(let i=0;i<len;i++){ const idx=i*ratio,i0=Math.floor(idx),i1=Math.min(i0+1,data.length-1),f=idx-i0; out[i]=data[i0]*(1-f)+data[i1]*f; } return out; }
 function _rms(a){ let s=0; for(let i=0;i<a.length;i++)s+=a[i]*a[i]; return Math.sqrt(s/a.length); }
 function _normalize(a){ let peak=0; for(let i=0;i<a.length;i++){ const v=Math.abs(a[i]); if(v>peak)peak=v; } if(peak>1e-4){ const g=Math.min(12,0.97/peak); if(g>1.03) for(let i=0;i<a.length;i++)a[i]*=g; } return a; }
-// frases típicas que Whisper INVENTA cuando el audio es casi silencio
 const _HALU=/^(gracias\.?|muchas gracias\.?|subt[ií]tulos.*|thanks for watching\.?|thank you\.?|you|bye\.?|\.|·|\s)+$/i;
-async function transcribe(audio16k,lang){
-  const asr=await getASR();
-  if(audio16k.length<4000) return '';
-  if(_rms(audio16k) < 0.0008){ return '__SILENCE__'; }     // solo silencio digital real (micro sin señal)
-  _normalize(audio16k);                                     // sube SIEMPRE el micro flojo antes de transcribir
+async function transcribe(audio16k,lang){ const asr=await getASR(); if(audio16k.length<4000) return '';
+  if(_rms(audio16k)<0.0008) return '__SILENCE__'; _normalize(audio16k);
   const out=await asr(audio16k,{language:lang,task:'transcribe',temperature:0,no_repeat_ngram_size:3});
-  let t=(out&&out.text||'').trim();
-  if(!t || _HALU.test(t)) return '';                         // alucinación o vacío → descarta
-  return t;
-}
+  let t=(out&&out.text||'').trim(); if(!t||_HALU.test(t)) return ''; return t; }
 
 // ── traducción ──
 const trCache=new Map();
@@ -236,100 +240,218 @@ async function chromeTranslator(src,tgt){ const T=self.Translator||self.translat
   try{ const av=T.availability?await T.availability({sourceLanguage:src,targetLanguage:tgt}):'available'; if(av==='unavailable') return null;
     const t=await (T.create?T.create({sourceLanguage:src,targetLanguage:tgt}):T.createTranslator({sourceLanguage:src,targetLanguage:tgt})); trCache.set(key,t); return t; }catch{ return null; } }
 async function opus(src,tgt,text){ if(src===tgt) return text; const {pipeline}=await tf();
-  const hop=async(a,b,txt)=>{ const id=`Xenova/opus-mt-${a}-${b}`; if(!trCache.has(id)){ $('dlMsg').textContent=`Descargando traductor ${a}→${b}…`; trCache.set(id,await pipeline('translation',id,{dtype:'fp32',progress_callback:dlProgress})); dlDone(); } const r=await trCache.get(id)(txt); return r[0].translation_text; };
+  const hop=async(a,b,txt)=>{ const id=`Xenova/opus-mt-${a}-${b}`; if(!trCache.has(id)){ dlShow(`Descargando traductor ${a}→${b}…`); trCache.set(id,await pipeline('translation',id,{dtype:'fp32',progress_callback:dlProgress})); } const r=await trCache.get(id)(txt); return r[0].translation_text; };
   try{ if(src==='en'||tgt==='en') return await hop(src,tgt,text); return await hop('en',tgt,await hop(src,'en',text)); }catch(e){ return '['+e.message.slice(0,40)+']'; } }
 async function translate(src,tgt,text){ const ct=await chromeTranslator(src,tgt); if(ct){ try{ return await ct.translate(text); }catch{} } return await opus(src,tgt,text); }
 
-// ── TTS: Kokoro (inglés) + voz de sistema (resto) ──
-let kokoroP=null;
-async function getKokoro(){ if(!kokoroP) kokoroP=(async()=>{ const {KokoroTTS}=await import('https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1'); $('dlMsg').textContent='Descargando la voz neural (Kokoro)…'; const t=await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX',{dtype:'q8',device:DEVICE,progress_callback:dlProgress}); dlDone(); return t; })(); return kokoroP; }
-function playPCM(f32,sr){ const AC=window.AudioContext||window.webkitAudioContext; const ac=new AC(); const buf=ac.createBuffer(1,f32.length,sr); buf.getChannelData(0).set(f32); const s=ac.createBufferSource(); s.buffer=buf; s.connect(ac.destination); s.start(); }
-async function speak(text,lang){ if(lang==='en'){ try{ const tts=await getKokoro(); const a=await tts.generate(text,{voice:'af_heart'}); playPCM(a.audio,a.sampling_rate); return; }catch(e){ console.warn('[tts] kokoro fallo, voz sistema', e.message); dlDone(); } }
-  try{ const u=new SpeechSynthesisUtterance(text); u.lang=speechLocale[lang]||lang; speechSynthesis.speak(u); }catch{} }
+// ── TTS: voz del sistema, medio-dúplex ──
+let ttsBusy=false, ttsToken=0, ttsGuard=null;
+let muted = localStorage.getItem('elffuss_tr_muted')==='1';
+function speak(text,lang){ if(muted) return; try{ const tok=++ttsToken; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text);
+  const loc=speechLocale[lang]||lang; u.lang=loc; u.rate=1;
+  const vs=speechSynthesis.getVoices()||[]; const v=vs.find(x=>x.lang&&x.lang.toLowerCase().replace('_','-').startsWith(loc.toLowerCase().slice(0,2))); if(v)u.voice=v;
+  ttsBusy=true;
+  // Perro guardián: si onend/onerror NO llega (pasa cuando la pestaña se oculta
+  // a media frase: Chrome congela speechSynthesis), ttsBusy se quedaba en true
+  // para siempre y el medio-dúplex descartaba TODO el audio → la app parecía
+  // colgada. Este timeout siempre lo libera.
+  clearTimeout(ttsGuard);
+  ttsGuard=setTimeout(()=>{ ttsBusy=false; }, Math.min(30000, 1500+text.length*95));
+  const done=()=>{ if(tok===ttsToken) setTimeout(()=>{ if(tok===ttsToken){ ttsBusy=false; clearTimeout(ttsGuard); } },400); };
+  u.onend=done; u.onerror=done; speechSynthesis.speak(u); }catch(e){ ttsBusy=false; clearTimeout(ttsGuard); } }
+// Libera el medio-dúplex pase lo que pase (pánico o cambio de pestaña).
+function ttsRelease(){ try{ speechSynthesis.cancel(); }catch{} clearTimeout(ttsGuard); ttsToken++; ttsBusy=false; }
 
-// ── diarizador (modo conversación) ──
-let diarP=null; async function getDiar(){ if(!diarP) diarP=(async()=>{ $('dlMsg').textContent='Descargando el separador de voces…'; const d=await loadDiarizer(await tf(),{device:DEVICE}); dlDone(); return d; })(); return diarP; }
+// ── diarizador ──
+let diarP=null; async function getDiar(){ if(!diarP) diarP=(async()=>{ dlShow('Descargando el separador de voces…'); return await loadDiarizer(await tf(),{device:DEVICE}); })(); return diarP; }
 
-// ── push-to-talk ──
-function pickMime(){ for(const m of ['audio/webm;codecs=opus','audio/webm','audio/mp4','']){ if(!m||MediaRecorder.isTypeSupported(m)) return m; } return ''; }
-const recs={A:null,B:null}; let busy=false;
-async function startRec(side){ if(recs[side]||busy||convOn) return;
-  if(!(await ensureASR())){ setHint(side,'descarga cancelada'); return; }
-  const from=$('lang'+side).value; let stream;
-  // sin noiseSuppression/echoCancellation: cierran el audio de micros flojos. autoGainControl sube el nivel.
-  try{ stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:true}}); }
-  catch(e){ setHint(side,'sin permiso de micrófono','err'); return; }
-  const mr=new MediaRecorder(stream,pickMime()?{mimeType:pickMime()}:undefined); const chunks=[]; mr.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
-  mr.onstop=async()=>{ stream.getTracks().forEach(t=>t.stop()); const blob=new Blob(chunks,{type:mr.mimeType||'audio/webm'}); await handleSide(side,from,blob); };
-  mr.start(); recs[side]={mr,stream}; $('mic'+side).classList.add('rec'); setHint(side,'grabando… (pulsa para parar)','work'); meter(side,stream); }
-// medidor de nivel: escala el micro con tu voz — si no se mueve, el micro no capta
-function meter(side,stream){
-  const AC=window.AudioContext||window.webkitAudioContext; const ac=new AC(); const an=ac.createAnalyser(); an.fftSize=256;
-  ac.createMediaStreamSource(stream).connect(an); const buf=new Uint8Array(an.frequencyBinCount); const mic=$('mic'+side); let quiet=0,frames=0;
-  const tick=()=>{ if(!recs[side]){ mic.style.boxShadow=''; try{ac.close();}catch{} return; }
-    an.getByteFrequencyData(buf); let s=0; for(const v of buf)s+=v; const lvl=Math.min(1,(s/buf.length/255)*3.5);
-    mic.style.boxShadow=`0 0 0 ${Math.round(2+lvl*15)}px rgba(192,101,90,${(0.06+lvl*0.28).toFixed(2)})`; frames++; if(lvl<0.03)quiet++;
-    if(frames===90 && quiet>85) setHint(side,'no detecto señal del micro…','err'); requestAnimationFrame(tick); };
-  tick();
+// ── micrófono ──
+async function populateMics(){ try{ const devs=await navigator.mediaDevices.enumerateDevices(); const ins=devs.filter(d=>d.kind==='audioinput'); const sel=$('micDev'); if(!sel) return; const cur=sel.value;
+  sel.innerHTML='<option value="">Por defecto</option>'+ins.map((d,i)=>`<option value="${d.deviceId}">${(d.label||('Micrófono '+(i+1))).replace(/"/g,'&quot;')}</option>`).join(''); if(cur)sel.value=cur; }catch(e){} }
+populateMics(); try{ navigator.mediaDevices.addEventListener('devicechange',populateMics); }catch(e){}
+
+// ── onda de voz ──
+function startWave(id, stream, isActive){
+  const cv=$(id); if(!cv) return; const AC=window.AudioContext||window.webkitAudioContext; const ac=new AC(); const an=ac.createAnalyser(); an.fftSize=128; an.smoothingTimeConstant=0.75;
+  ac.createMediaStreamSource(stream).connect(an); const bins=an.frequencyBinCount, data=new Uint8Array(bins), N=32;
+  const accent=(getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())||'#b79268';
+  const cx=cv.getContext('2d'); let quiet=0,frames=0,warned=false;
+  const draw=()=>{ if(!isActive()){ cx.clearRect(0,0,cv.width,cv.height); try{ac.close();}catch{} return; }
+    an.getByteFrequencyData(data); const W=cv.width,H=cv.height,bw=W/N; cx.clearRect(0,0,W,H); let peak=0;
+    for(let i=0;i<N;i++){ const idx=Math.min(bins-1,Math.floor(Math.pow(i/N,1.35)*bins)); const val=data[idx]; if(val>peak)peak=val; const v=Math.min(1,(val/255)*1.9);
+      const h=Math.max(3,v*H), x=i*bw+bw*0.26, w=bw*0.48, y=(H-h)/2, r=w/2;
+      cx.fillStyle=accent; cx.globalAlpha=0.4+v*0.6; cx.beginPath(); cx.roundRect?cx.roundRect(x,y,w,h,r):cx.rect(x,y,w,h); cx.fill(); }
+    cx.globalAlpha=1; frames++; if(peak<10)quiet++; else quiet=0;
+    if(!warned&&frames>=90&&quiet>=88){ warned=true; setStatus('La onda no se mueve: Chrome no recibe audio. En Mac, activa el micro de Chrome en Ajustes → Privacidad, o elige otro micro.','err'); }
+    requestAnimationFrame(draw); };
+  draw();
 }
-function stopRec(side){ const r=recs[side]; if(!r) return; recs[side]=null; $('mic'+side).classList.remove('rec'); setHint(side,'procesando…','work'); try{ r.mr.stop(); }catch{} }
-function bubble(side,who,src){ const el=document.createElement('div'); el.className='bub '+side; el.innerHTML=`<div class="who"></div><div class="src"></div><div class="tr">…</div>`;
-  el.querySelector('.who').textContent=who; el.querySelector('.src').textContent=src; $('log').appendChild(el); $('log').scrollTop=$('log').scrollHeight; return el; }
-async function handleSide(side,from,blob){ const to=$('lang'+(side==='A'?'B':'A')).value; busy=true; $('micA').disabled=$('micB').disabled=true;
-  try{ setStatus('Transcribiendo (local)…','work'); const audio=await blobTo16k(blob); const text=await transcribe(audio,from);
-    if(text==='__SILENCE__'){ setHint(side,'no llegó tu voz — revisa el micro y el volumen','err'); setStatus('No detecté audio del micrófono.','err'); return; }
-    if(!text){ setHint(side,'no te he entendido, repite más claro','err'); setStatus('Sin texto que traducir.',''); return; }
-    setHint(side,'pulsa y habla'); const el=bubble(side, side==='A'?'Tú (A)':'Tú (B)', text);
-    setStatus('Traduciendo…','work'); const out=await translate(from,to,text); el.querySelector('.tr').textContent=out; setStatus('Listo. Todo local, sin nube.',''); speak(out,to);
-  }catch(e){ setHint(side,'error: '+e.message.slice(0,50),'err'); }
-  finally{ busy=false; $('micA').disabled=$('micB').disabled=false; } }
-$('micA').onclick=()=>recs.A?stopRec('A'):startRec('A');
-$('micB').onclick=()=>recs.B?stopRec('B'):startRec('B');
 
-// ── modo conversación (VAD + diarización online) ──
-let convOn=false, convCtx=null, convStream=null, convProc=null, convBook=null;
+// ── subtítulos ──
+function addSub(label, from){ const em=$('emptyMsg'); if(em)em.remove();
+  const el=document.createElement('div'); el.className='sub '+(label==='S1'?'a':'b');
+  el.innerHTML=`<div class="who">${label==='S1'?'Hablante 1':'Hablante 2'} · ${from.toUpperCase()}</div><div class="src"></div><div class="tr">…</div>`;
+  $('log').appendChild(el); $('log').scrollTop=$('log').scrollHeight; return el; }
+
+// ── modo conversación ──
+let convOn=false, convCtx=null, convStream=null, convProc=null, convBook=null, convBusy=false, convPaused=false;
+let lastAudioTs=0, convWatch=null;
+let convStarting=false;
 async function convStart(){
-  if(!(await ensureASR())) return; await getDiar();
-  let stream; try{ stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); }
-  catch(e){ setStatus('Permite el micrófono para el modo conversación.','err'); return; }
+  if(convStarting||convOn) return;          // doble clic / rearranque solapado → un solo grafo
+  convStarting=true;
+  convPaused=false;                          // se quedaba pegado y el manejador de visibilidad
+                                             // actuaba sobre un contexto ya cerrado
+  try{ await convStartInner(); } finally { convStarting=false; }
+}
+async function convStartInner(){
+  let stream; const dev=$('micDev')?.value; const c={echoCancellation:true,noiseSuppression:true,autoGainControl:true}; if(dev)c.deviceId={exact:dev};
+  try{ stream=await navigator.mediaDevices.getUserMedia({audio:c}); populateMics(); }
+  catch(e){ setStatus('Permite el micrófono para empezar.','err'); return; }
   convOn=true; convStream=stream; convBook=makeSpeakerBook({tau:0.5,maxSpeakers:2});
-  $('conv').classList.add('on'); $('conv').textContent='Parar conversación';
-  setStatus('Modo conversación: hablad por turnos, sin manos. Separo quién habla por su voz.','work');
+  $('toggle').textContent='Parar'; $('toggle').classList.remove('paused');
+  setStatus('Escuchando… hablad por turnos','work');
   const AC=window.AudioContext||window.webkitAudioContext; convCtx=new AC(); const src=convCtx.createMediaStreamSource(stream);
   const proc=convCtx.createScriptProcessor(4096,1,1); convProc=proc; src.connect(proc); proc.connect(convCtx.destination);
+  startWave('wave', stream, ()=>convOn);
+  // Perro guardián del grafo de audio: si deja de llegar audio mientras
+  // decimos «escuchando», el grafo está muerto (típico al volver de segundo
+  // plano: resume() resuelve pero Chrome deja el contexto suspendido sin un
+  // gesto del usuario). Se reconstruye solo en vez de quedarse mudo.
+  lastAudioTs=Date.now();
+  clearInterval(convWatch);
+  convWatch=setInterval(()=>{
+    if(!convOn||document.hidden) return;
+    // Quedó marcado como pausado pero la ventana YA se ve (pasa al abrir el
+    // copiloto: Chrome oculta la ventana tapada y luego no siempre reanuda):
+    // reconstruir en vez de quedarse mudo para siempre.
+    if(convPaused){ convPaused=false; setStatus('Recuperando el micrófono…','work'); convStop(); convStart(); return; }
+    if(Date.now()-lastAudioTs < 5000) return;
+    console.warn('[elffuss] grafo de audio muerto; reconstruyendo');
+    setStatus('Recuperando el micrófono…','work');
+    convStop(); convStart();
+  }, 2500);
   const SR=convCtx.sampleRate; let buf=[], voiced=false, silence=0, speechLen=0;
-  proc.onaudioprocess=(e)=>{ if(!convOn) return; const d=e.inputBuffer.getChannelData(0); const r=rms(d);
-    if(r>0.02){ voiced=true; silence=0; buf.push(new Float32Array(d)); speechLen+=d.length; }
+  proc.onaudioprocess=(e)=>{ lastAudioTs=Date.now(); if(!convOn) return;
+    if(ttsBusy||convBusy){ buf=[]; voiced=false; silence=0; speechLen=0; return; }   // medio-dúplex
+    const d=e.inputBuffer.getChannelData(0); const r=rms(d);
+    if(r>0.015){ voiced=true; silence=0; buf.push(new Float32Array(d)); speechLen+=d.length; }
     else if(voiced){ buf.push(new Float32Array(d)); silence+=d.length;
       if(silence>SR*0.7){ const seg=flatten(buf); buf=[]; const sl=speechLen; voiced=false; silence=0; speechLen=0;
         if(sl>SR*0.4) convHandle(resample(seg,SR,16000)); } } };
 }
 function flatten(chunks){ let n=0; for(const c of chunks)n+=c.length; const out=new Float32Array(n); let o=0; for(const c of chunks){ out.set(c,o); o+=c.length; } return out; }
-function convStop(){ convOn=false; $('conv').classList.remove('on'); $('conv').textContent='Modo conversación';
-  try{ convProc&&(convProc.onaudioprocess=null,convProc.disconnect()); convCtx&&convCtx.close(); convStream&&convStream.getTracks().forEach(t=>t.stop()); }catch{}
-  $('sideA').classList.remove('active'); $('sideB').classList.remove('active'); setStatus('Conversación terminada.',''); }
-$('conv').onclick=()=>convOn?convStop():convStart();
-let convBusy=false;
+function convStop(){ convOn=false; ttsRelease(); convBusy=false; convPaused=false; clearInterval(convWatch); convWatch=null; $('toggle').textContent='Reanudar'; $('toggle').classList.add('paused');
+  try{ convProc&&(convProc.onaudioprocess=null,convProc.disconnect()); }catch{}
+  try{ convCtx&&convCtx.state!=='closed'&&convCtx.close(); }catch{}
+  try{ convStream&&convStream.getTracks().forEach(t=>t.stop()); }catch{}
+  convProc=null; convCtx=null; convStream=null;
+  setStatus('En pausa. Pulsa Reanudar para seguir.',''); }
 async function convHandle(audio16k){ if(convBusy) return; convBusy=true;
   try{ const D=await getDiar(); const vec=await speakerVec(D,audio16k); const {label}=convBook.assign(vec);
-    const isA=label==='S1'; const side=isA?'A':'B'; const from=$('lang'+side).value; const to=$('lang'+(isA?'B':'A')).value;
-    $('sideA').classList.toggle('active',isA); $('sideB').classList.toggle('active',!isA); setStatus(`Hablante ${label} → traduciendo…`,'work');
-    const text=await transcribe(audio16k,from); if(!text){ setStatus('(silencio)',''); return; }
-    const el=bubble(side, `${label} · ${from.toUpperCase()}`, text); const out=await translate(from,to,text); el.querySelector('.tr').textContent=out; speak(out,to);
-    setStatus('Escuchando… (separo las voces por turnos)','');
-  }catch(e){ setStatus('conv error: '+e.message.slice(0,50),'err'); }
+    const isA=label==='S1'; const from=$('lang'+(isA?'A':'B')).value; const to=$('lang'+(isA?'B':'A')).value;
+    setStatus(`${isA?'Hablante 1':'Hablante 2'} → traduciendo…`,'work');
+    const text=await transcribe(audio16k,from); if(!text||text==='__SILENCE__'){ setStatus('Escuchando…',''); return; }
+    const el=addSub(label,from); el.querySelector('.src').textContent=text;
+    copilotSend(label==='S1'?'Hablante 1':'Hablante 2', text);   // → copiloto de ventas en Claw
+    const out=await translate(from,to,text); el.querySelector('.tr').textContent=out; $('log').scrollTop=$('log').scrollHeight;
+    speak(out,to); setStatus('Escuchando… (separo las voces por turnos)','');
+  }catch(e){ setStatus('error: '+e.message.slice(0,50),'err'); }
   finally{ convBusy=false; } }
+$('toggle').onclick=()=>convOn?convStop():convStart();
+function paintMute(){ $('mute').textContent = muted ? '🔇 Silencio' : '🔊 Voz';
+  $('mute').classList.toggle('paused', muted);
+  $('mute').title = muted ? 'Silenciado: traduce y subtitula, pero no habla. Pulsa para activar la voz.' : 'Silenciar la voz: sigue traduciendo y mostrando subtítulos, pero sin hablar'; }
+$('mute').onclick=()=>{ muted=!muted; localStorage.setItem('elffuss_tr_muted', muted?'1':'0');
+  if(muted) ttsRelease();               // corta lo que esté diciendo ahora mismo
+  paintMute(); };
+paintMute();
 
-// ── ahorro de energía: nada del cerebro corre en segundo plano ──
-let convPaused=false;
+// ── copiloto de ventas: abre Claw y le pasa la conversación (postMessage cross-origin) ──
+const CLAW='https://claw.elffuss.utopiaia.com';
+let copilotWin=null, copilotReady=false, copilotBuf=[];
+addEventListener('message', e=>{ if(e.origin!==CLAW || !e.data) return;
+  if(e.data.kind==='copilot-ready'){ copilotReady=true;
+    const sc=$('langA').value, sn=(LANGS.find(l=>l[0]===sc)||[])[1]||sc, oc=$('langB').value, on=(LANGS.find(l=>l[0]===oc)||[])[1]||oc;
+    try{ copilotWin.postMessage({kind:'copilot-init', sellerLangName:sn, sellerCode:sc, clientLangName:on},CLAW); }catch{}
+    copilotBuf.forEach(t=>{ try{copilotWin.postMessage(t,CLAW);}catch{} }); copilotBuf=[]; }
+  else if(e.data.kind==='copilot-advice'){
+    // El modelo suele devolver el guion ENTRE COMILLAS ("—"), y así se colaba
+    // como si fuera un consejo. Limpiar comillas/espacios y descartar si queda vacío.
+    let t=(e.data.text||'').trim().replace(/^["'\u201c\u201d\s]+|["'\u201c\u201d\s]+$/g,'').trim();
+    if(t && !/^[—\-–_]+$/.test(t)){ $('advice').hidden=false; $('advice').querySelector('.t').textContent=t; } }
+});
+function copilotSend(speaker,text){ if(!copilotWin||copilotWin.closed) return; const msg={kind:'transcript',speaker,text};
+  if(copilotReady){ try{copilotWin.postMessage(msg,CLAW);}catch{} } else copilotBuf.push(msg); }
+function copilotReset(){ copilotWin=null; copilotReady=false; copilotBuf=[]; $('copilot').classList.remove('on'); $('copilot').textContent='Copiloto'; }
+$('copilot').onclick=()=>{
+  if(copilotWin && !copilotWin.closed){ try{copilotWin.close();}catch{} copilotReset(); return; }  // toggle: si está abierto, ciérralo
+  copilotReady=false; copilotBuf=[];
+  // Media pantalla derecha: el copiloto queda al lado sin taparte los subtítulos.
+  // (No podemos mover ESTA ventana —el navegador solo deja recolocar las que
+  // abre el propio script—, pero sí colocar la del copiloto donde toca.)
+  const sw=screen.availWidth||1280, sh=screen.availHeight||800, sl=screen.availLeft||0, st=screen.availTop||0;
+  const w=Math.max(420,Math.floor(sw/2)), h=sh;
+  copilotWin=window.open(CLAW+'/?copilot=1','elffuss-copilot',
+    `popup=yes,width=${w},height=${h},left=${sl+sw-w},top=${st}`);
+  if(copilotWin){ $('copilot').classList.add('on'); $('copilot').textContent='Cerrar copiloto'; }
+};
+// si cierras la ventana del copiloto a mano, el botón vuelve a su estado
+setInterval(()=>{ if(copilotWin && copilotWin.closed) copilotReset(); }, 1500);
+window.__copilot={ ready:()=>copilotReady, send:copilotSend, open:()=>$('copilot').click() };
+
+// ── flujo de arranque: elegir idiomas → consentir → descargar todo → conversar ──
+let dlDoneBefore = localStorage.getItem('elffuss_tr_dl_done')==='1';   // ya descargado antes → no preguntar
+async function preloadAll(){
+  dlShow('Preparando…');
+  await getASR();
+  await getDiar();
+  // calentar traducción SOLO con la Translator API de Chrome (on-device, sin descarga grande).
+  // Si no está, la traducción se hace perezosa luego (no bloqueamos ni bajamos opus-mt aquí).
+  try{ await Promise.race([ (async()=>{ const t=await chromeTranslator($('langA').value,$('langB').value); if(t) await t.translate('hola'); })(), new Promise(r=>setTimeout(r,5000)) ]); }catch(e){}
+  dlDone();
+}
+$('start').onclick=async()=>{
+  const a=$('langA').value, b=$('langB').value;
+  if(a===b){ alert('Elige dos idiomas distintos.'); return; }
+  if(!dlDoneBefore){ if(!(await askConsent())) return; }   // solo pregunta la primera vez
+  $('start').disabled=true;
+  try{ await preloadAll(); dlDoneBefore=true; try{localStorage.setItem('elffuss_tr_dl_done','1');}catch{} }
+  catch(e){ dlDone(); $('start').disabled=false; alert('No se pudieron cargar los modelos: '+e.message); return; }
+  $('pairLabel').textContent=nameOf(a)+'  ⇄  '+nameOf(b);
+  $('setup').hidden=true; $('convo').hidden=false;
+  convStart();
+};
+
+// ── ahorro de energía ──
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){
-    for(const s of ['A','B']) if(recs[s]) stopRec(s);               // suelta el micro de push-to-talk
-    if(convOn && convCtx && convCtx.state==='running'){ try{convCtx.suspend();}catch{} convPaused=true; setStatus('Pausado en segundo plano — ahorro de batería. Vuelve a la pestaña para seguir.','work'); }
-  } else if(convOn && convPaused){ try{convCtx.resume();}catch{} convPaused=false; setStatus('Reanudado. Escuchando…',''); }
+    // Al ocultarse, SIEMPRE soltar el TTS: si se queda hablando, su onend no
+    // llega nunca y el medio-dúplex deja la app sorda al volver.
+    ttsRelease();
+    if(convOn && convCtx && convCtx.state==='running'){ try{convCtx.suspend();}catch{} convPaused=true; setStatus('Pausado en segundo plano — ahorro de batería.','work'); }
+  } else if(convOn && convPaused){
+    ttsRelease(); convBusy=false;               // volver siempre en limpio
+    convPaused=false;
+    if(!convCtx || convCtx.state==='closed'){   // el grafo murió: rearrancar de verdad
+      setStatus('Reanudando…','work'); convOn=false; convStart();
+    } else {
+      convCtx.resume().then(()=>{
+        // La promesa puede resolver con el contexto AÚN suspendido (autoplay
+        // policy). Verificar de verdad; si no corre, reconstruir el grafo.
+        if(convCtx && convCtx.state==='running'){ lastAudioTs=Date.now(); setStatus('Reanudado. Escuchando…',''); }
+        else { setStatus('Reanudando…','work'); convStop(); convStart(); }
+      }).catch(()=>{ setStatus('Reanudando…','work'); convStop(); convStart(); });
+    }
+  }
 });
 
-window.__translate=translate; window.__transcribe=transcribe; window.__blobTo16k=blobTo16k; window.__ready=true;
+// brillo que sigue el ratón (estilo Elffuss)
+(()=>{ const c=document.getElementById('cursorglow'); if(!c) return; let tx=50,ty=28,x=50,y=28,raf;
+  addEventListener('pointermove',e=>{ tx=e.clientX/innerWidth*100; ty=e.clientY/innerHeight*100; if(!raf)raf=requestAnimationFrame(loop); },{passive:true});
+  function loop(){ x+=(tx-x)*.12; y+=(ty-y)*.12; c.style.setProperty('--mx',x+'%'); c.style.setProperty('--my',y+'%'); if(Math.abs(tx-x)>.1||Math.abs(ty-y)>.1)raf=requestAnimationFrame(loop); else raf=null; } })();
+
+window.__translate=translate; window.__transcribe=transcribe; window.__ready=true;
 </script>
 </body>
 </html>
