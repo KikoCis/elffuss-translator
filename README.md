@@ -7,7 +7,7 @@
 It listens, tells speakers apart, translates and speaks back.
 No server, no account, no paid API — nothing you say ever leaves your machine.
 
-[**▶ Open the app**](https://translator.elffuss.utopiaia.com) · [Elffuss](https://elffuss.utopiaia.com) · Apache-2.0
+[**▶ Open the app**](https://translator.elffuss.com) · [Elffuss](https://elffuss.com) · Apache-2.0
 
 </div>
 
